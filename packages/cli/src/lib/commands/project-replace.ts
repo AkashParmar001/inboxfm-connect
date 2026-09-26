@@ -392,6 +392,12 @@ export const projectReplaceCommand = new Command('replace')
                             console.log(`  Missing:    ${cp.missing.length}`)
                             console.log(`  Mapped:     ${cp.mapped.length}`)
                         }
+                        if (artifact.plan.preflight.warnings && artifact.plan.preflight.warnings.length > 0) {
+                            console.log('\nPreflight Warnings:')
+                            for (const warn of artifact.plan.preflight.warnings) {
+                                console.log(`  - [${warn.kind}]: ${warn.message}`)
+                            }
+                        }
                     }
                     const totalChanges = artifact.plan.summary.created + artifact.plan.summary.updated + artifact.plan.summary.deleted
                     process.exit(totalChanges > 0 ? 1 : EXIT_SUCCESS)
