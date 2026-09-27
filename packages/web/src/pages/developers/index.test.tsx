@@ -7,14 +7,13 @@ import { mount } from '@/test/test-utils'
 describe('DevelopersPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn().mockResolvedValue(undefined),
-      },
-    })
+    if (!navigator.clipboard) {
+      Object.assign(navigator, { clipboard: { writeText: vi.fn() } })
+    }
+    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
   })
 
-  it('renders the developers page with SDK and REST contracts', () => {
+  it('renders the developers page with SDK and REST contracts including closed Authorization quote (#176)', () => {
     const root = mount(
       <MemoryRouter>
         <DevelopersPage />
@@ -25,9 +24,10 @@ describe('DevelopersPage', () => {
     expect(root.textContent).toContain('SDK Installation')
     expect(root.textContent).toContain('TypeScript SDK Example')
     expect(root.textContent).toContain('Direct REST API Contract')
+    expect(root.textContent).toContain('-H "Authorization: Bearer <API_KEY>" \\')
   })
 
-  it('renders the curl snippet with properly closed Authorization header and valid bash syntax (#176)', () => {
+  it('renders the curl snippet with properly closed Authorization header and balanced quotes (#176)', () => {
     const root = mount(
       <MemoryRouter>
         <DevelopersPage />
@@ -66,14 +66,15 @@ describe('DevelopersPage', () => {
       </MemoryRouter>
     )
 
-    const buttons = root.querySelectorAll('button')
-    const copyButton = Array.from(buttons).find((b) => b.querySelector('svg'))
+    const copyButton = root.querySelector<HTMLButtonElement>('[data-testid="copy-rest-snippet"]')
     expect(copyButton).toBeDefined()
 
     await act(async () => {
       copyButton?.click()
     })
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalled()
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('-H "Authorization: Bearer <API_KEY>" \\')
+    )
   })
 })
