@@ -2,7 +2,7 @@ import { apId } from '@inboxfm-connect/core-utils'
 import { FileType, PrincipalType } from '@inboxfm-connect/shared'
 import { FastifyInstance } from 'fastify'
 import { StatusCodes } from 'http-status-codes'
-import { vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { filesService } from '../../../../src/app/file/files-service'
 import { JwtAudience, jwtUtils } from '../../../../src/app/helper/jwt-utils'
 import { generateMockToken } from '../../../helpers/auth'
@@ -273,7 +273,7 @@ describe('Files Controller', () => {
             })
             const fileId = apId()
 
-            await app!.inject({
+            const uploadResponse = await app!.inject({
                 method: 'PUT',
                 url: `/api/v1/files/${fileId}`,
                 query: { token: engineToken },
@@ -283,6 +283,7 @@ describe('Files Controller', () => {
                 },
                 payload: Buffer.from('audience guarded'),
             })
+            expect(uploadResponse.statusCode).toBe(StatusCodes.OK)
 
             const audienceLessToken = await jwtUtils.sign({
                 payload: { fileId, fileType: FileType.FLOW_STEP_FILE },
@@ -308,7 +309,7 @@ describe('Files Controller', () => {
             })
             const fileId = apId()
 
-            await app!.inject({
+            const uploadResponse = await app!.inject({
                 method: 'PUT',
                 url: `/api/v1/files/${fileId}`,
                 query: { token: engineToken },
@@ -318,6 +319,7 @@ describe('Files Controller', () => {
                 },
                 payload: Buffer.from('audience guarded'),
             })
+            expect(uploadResponse.statusCode).toBe(StatusCodes.OK)
 
             const foreignAudienceToken = await jwtUtils.sign({
                 payload: { fileId, fileType: FileType.FLOW_STEP_FILE },
