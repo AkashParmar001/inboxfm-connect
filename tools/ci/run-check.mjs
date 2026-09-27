@@ -16,6 +16,7 @@ switch (suite) {
         turbo('test-unit', '--filter=api', '--filter=@inboxfm-connect/engine')
         break
     case 'engine-integration':
+        execFileSync(process.execPath, ['-e', "require('isolated-vm')"], { cwd: 'packages/server/engine', stdio: 'inherit' })
         turbo('test-integration', '--filter=@inboxfm-connect/engine')
         break
     case 'ce':
