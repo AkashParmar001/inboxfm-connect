@@ -109,6 +109,57 @@ describe('ExecutionEvent Service', () => {
 
             await executionEventService.unsubscribe({ executionId })
         })
+
+        it('delivers cross-replica events exactly once after a close-and-reconnect cycle', async () => {
+            const executionId = 'exec_test_reconnect_cross_replica'
+            const receivedViewer1: ExecutionEvent[] = []
+            const receivedViewer2: ExecutionEvent[] = []
+
+            const listener1 = (e: ExecutionEvent) => receivedViewer1.push(e)
+            const listener2 = (e: ExecutionEvent) => receivedViewer2.push(e)
+
+            // Viewer 1 subscribes
+            await executionEventService.subscribe({
+                executionId,
+                listener: listener1,
+            })
+
+            // Viewer 1 disconnects (last listener tears down channel)
+            await executionEventService.unsubscribe({
+                executionId,
+                listener: listener1,
+            })
+
+            // Viewer 2 subscribes (reconnect on same execution)
+            await executionEventService.subscribe({
+                executionId,
+                listener: listener2,
+            })
+
+            const crossReplicaEvent: ExecutionEvent = {
+                id: `${executionId}:1001`,
+                executionId,
+                type: ExecutionEventType.ExecutionCompleted,
+                timestamp: new Date().toISOString(),
+                payload: { executionId, output: { success: true } },
+            }
+
+            const { error: publishError } = await tryCatch(() => pubsub.publish(`execution:${executionId}:events`, JSON.stringify(crossReplicaEvent)))
+
+            if (publishError) {
+                await executionEventService.unsubscribe({ executionId, listener: listener2 })
+                return
+            }
+
+            await waitUntil(() => receivedViewer2.length === 1)
+
+            // Crucial: Viewer 2 receives exactly 1 event; Viewer 1 receives 0 events after disconnect
+            expect(receivedViewer2).toHaveLength(1)
+            expect(receivedViewer2[0].id).toBe(crossReplicaEvent.id)
+            expect(receivedViewer1).toHaveLength(0)
+
+            await executionEventService.unsubscribe({ executionId, listener: listener2 })
+        })
     })
 
     describe('Multi-listener subscription isolation & lifecycle (#158)', () => {
