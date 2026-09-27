@@ -63,6 +63,7 @@ export function useConnectionsQuery(params?: ConnectionsListParams) {
   return useQuery({
     queryKey: ['connections', params ?? {}, projectId],
     queryFn: () => connectionsApi.list(params),
+    meta: { showErrorToast: true, showErrorDialog: true },
   })
 }
 
