@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { EntitySchema } from 'typeorm'
 import { describe, expect, it } from 'vitest'
 import { getEntities } from '../../../../src/app/database/database-connection'
@@ -42,7 +43,7 @@ export async function discoverEntities(appDir: string): Promise<DiscoveredEntity
     const discovered: DiscoveredEntity[] = []
 
     for (const filePath of files) {
-        const mod = await import(filePath)
+        const mod = await import(pathToFileURL(filePath).href)
         const relativePath = path.relative(appDir, filePath).replace(/\\/g, '/')
 
         for (const [exportName, exportedVal] of Object.entries(mod)) {
@@ -95,6 +96,31 @@ export function checkEntityRegistrations(
     return { missing, duplicates }
 }
 
+export function buildMissingEntitiesMessage(missing: DiscoveredEntity[]): string {
+    const missingDetails = missing
+        .map(
+            (m) =>
+                `  - Entity '${m.entity.options.name}' (export '${m.exportName}') in src/app/${m.relativePath}`,
+        )
+        .join('\n')
+
+    const fixInstructions = missing
+        .map(
+            (m) =>
+                `    import { ${m.exportName} } from '../${m.relativePath.replace(/\.ts$/, '')}'`,
+        )
+        .join('\n')
+
+    return (
+        `Found ${missing.length} entity file(s) missing from getEntities() in packages/server/api/src/app/database/database-connection.ts:\n` +
+        `${missingDetails}\n\n` +
+        'Fix:\n' +
+        '1. Open packages/server/api/src/app/database/database-connection.ts\n' +
+        `2. Import the missing entity schema(s):\n${fixInstructions}\n` +
+        '3. Add the exported entity schema(s) to the array returned by getEntities().'
+    )
+}
+
 describe('Entity Registration Regression Suite (Issue #142)', () => {
     const appDir = path.resolve(__dirname, '../../../../src/app')
 
@@ -108,29 +134,7 @@ describe('Entity Registration Regression Suite (Issue #142)', () => {
         const { missing, duplicates } = checkEntityRegistrations(discovered, registered)
 
         if (missing.length > 0) {
-            const missingDetails = missing
-                .map(
-                    (m) =>
-                        `  - Entity '${m.entity.options.name}' (export '${m.exportName}') in src/app/${m.relativePath}`,
-                )
-                .join('\n')
-
-            const fixInstructions = missing
-                .map(
-                    (m) =>
-                        `    import { ${m.exportName} } from '../${m.relativePath.replace(/\.ts$/, '')}'`,
-                )
-                .join('\n')
-
-            const errorMessage =
-                `Found ${missing.length} entity file(s) missing from getEntities() in packages/server/api/src/app/database/database-connection.ts:\n` +
-                `${missingDetails}\n\n` +
-                'Fix:\n' +
-                '1. Open packages/server/api/src/app/database/database-connection.ts\n' +
-                `2. Import the missing entity schema(s):\n${fixInstructions}\n` +
-                '3. Add the exported entity schema(s) to the array returned by getEntities().'
-
-            expect.fail(errorMessage)
+            expect.fail(buildMissingEntitiesMessage(missing))
         }
 
         expect(duplicates, `Duplicate entity registrations found in getEntities(): ${duplicates.join(', ')}`).toHaveLength(0)
@@ -160,5 +164,11 @@ describe('Entity Registration Regression Suite (Issue #142)', () => {
         expect(missing).toHaveLength(1)
         expect(missing[0].exportName).toBe('UnregisteredTestEntity')
         expect(missing[0].entity.options.name).toBe('unregistered_test_entity')
+
+        const message = buildMissingEntitiesMessage(missing)
+        expect(message).toContain("Entity 'unregistered_test_entity' (export 'UnregisteredTestEntity') in src/app/test/unregistered.entity.ts")
+        expect(message).toContain("import { UnregisteredTestEntity } from '../test/unregistered.entity'")
+        expect(message).toContain('Open packages/server/api/src/app/database/database-connection.ts')
+        expect(message).toContain('Add the exported entity schema(s) to the array returned by getEntities().')
     })
 })
