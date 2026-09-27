@@ -288,6 +288,64 @@ describe('Execution authorization (USER principal, :id routes)', () => {
             secondStream.destroy()
         })
 
+        it('keeps remaining stream active when one concurrent SSE client disconnects (#158)', async () => {
+            const ctx = await createTestContext(app!)
+            const execution = await saveExecutionRow(ctx, 'Multi-viewer execution')
+
+            // Connect Viewer 1
+            const firstConnection = await ctx.inject({
+                method: 'GET',
+                url: `/api/v1/executions/${execution.id}/events`,
+                payloadAsStream: true,
+            })
+            expect(firstConnection.statusCode).toBe(StatusCodes.OK)
+            let receivedFirst = ''
+            const firstStream = firstConnection.stream()
+            firstStream.on('data', (chunk: Buffer) => {
+                receivedFirst += chunk.toString()
+            })
+
+            // Connect Viewer 2
+            const secondConnection = await ctx.inject({
+                method: 'GET',
+                url: `/api/v1/executions/${execution.id}/events`,
+                payloadAsStream: true,
+            })
+            expect(secondConnection.statusCode).toBe(StatusCodes.OK)
+            let receivedSecond = ''
+            const secondStream = secondConnection.stream()
+            secondStream.on('data', (chunk: Buffer) => {
+                receivedSecond += chunk.toString()
+            })
+
+            // Emit Event 1 (both should receive)
+            const event1 = await executionEventService.emit({
+                executionId: execution.id,
+                type: ExecutionEventType.ExecutionStarted,
+                payload: { executionId: execution.id, prompt: 'Multi-viewer execution', timestamp: new Date().toISOString() },
+            })
+
+            await waitUntil(() => receivedFirst.includes(event1.id) && receivedSecond.includes(event1.id))
+            expect(receivedFirst).toContain(`id: ${event1.id}`)
+            expect(receivedSecond).toContain(`id: ${event1.id}`)
+
+            // Disconnect Viewer 1 (simulating closing one browser tab)
+            firstStream.destroy()
+
+            // Emit Event 2
+            const event2 = await executionEventService.emit({
+                executionId: execution.id,
+                type: ExecutionEventType.ExecutionCompleted,
+                payload: { executionId: execution.id, output: { success: true } },
+            })
+
+            // Viewer 2 must STILL receive Event 2!
+            await waitUntil(() => receivedSecond.includes(event2.id))
+            expect(receivedSecond).toContain(`id: ${event2.id}`)
+
+            secondStream.destroy()
+        })
+
         it('denies streaming an execution owned by another project', async () => {
             const ctxA = await createTestContext(app!)
             const ctxB = await createTestContext(app!)

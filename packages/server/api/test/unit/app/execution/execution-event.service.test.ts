@@ -111,6 +111,81 @@ describe('ExecutionEvent Service', () => {
         })
     })
 
+    describe('Multi-listener subscription isolation & lifecycle (#158)', () => {
+        it('unsubscribes only the specified listener and keeps other listeners active', async () => {
+            const executionId = 'exec_multi_listener_test'
+            const eventsA: ExecutionEvent[] = []
+            const eventsB: ExecutionEvent[] = []
+
+            const listenerA = (e: ExecutionEvent) => eventsA.push(e)
+            const listenerB = (e: ExecutionEvent) => eventsB.push(e)
+
+            await executionEventService.subscribe({ executionId, listener: listenerA })
+            await executionEventService.subscribe({ executionId, listener: listenerB })
+
+            const event1 = await executionEventService.emit({
+                executionId,
+                type: ExecutionEventType.ExecutionStarted,
+                payload: { executionId, step: 1 },
+            })
+
+            expect(eventsA).toHaveLength(1)
+            expect(eventsB).toHaveLength(1)
+            expect(eventsA[0].id).toBe(event1.id)
+            expect(eventsB[0].id).toBe(event1.id)
+
+            // Unsubscribe listener A only
+            await executionEventService.unsubscribe({ executionId, listener: listenerA })
+
+            const event2 = await executionEventService.emit({
+                executionId,
+                type: ExecutionEventType.PlannerStarted,
+                payload: { executionId, step: 2 },
+            })
+
+            // Listener A did not receive event 2; Listener B received both events
+            expect(eventsA).toHaveLength(1)
+            expect(eventsB).toHaveLength(2)
+            expect(eventsB[1].id).toBe(event2.id)
+
+            // Unsubscribe listener B
+            await executionEventService.unsubscribe({ executionId, listener: listenerB })
+
+            await executionEventService.emit({
+                executionId,
+                type: ExecutionEventType.ExecutionCompleted,
+                payload: { executionId, step: 3 },
+            })
+
+            // Neither received event 3
+            expect(eventsA).toHaveLength(1)
+            expect(eventsB).toHaveLength(2)
+        })
+
+        it('unsubscribing without listener reference clears all listeners', async () => {
+            const executionId = 'exec_clear_all_test'
+            const eventsA: ExecutionEvent[] = []
+            const eventsB: ExecutionEvent[] = []
+
+            const listenerA = (e: ExecutionEvent) => eventsA.push(e)
+            const listenerB = (e: ExecutionEvent) => eventsB.push(e)
+
+            await executionEventService.subscribe({ executionId, listener: listenerA })
+            await executionEventService.subscribe({ executionId, listener: listenerB })
+
+            await executionEventService.unsubscribe({ executionId })
+
+            await executionEventService.emit({
+                executionId,
+                type: ExecutionEventType.ExecutionStarted,
+                payload: { executionId },
+            })
+
+            expect(eventsA).toHaveLength(0)
+            expect(eventsB).toHaveLength(0)
+        })
+    })
+
     describe('Forbidden Graph Fields Audit', () => {
         it('ensures ExecutionEvent schema contains zero graph/workflow fields', () => {
             const keys = Object.keys(ExecutionEvent.shape)

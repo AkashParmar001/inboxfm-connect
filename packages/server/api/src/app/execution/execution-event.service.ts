@@ -1,8 +1,9 @@
-import { isNil, sanitizeObjectForPostgresql } from '@inboxfm-connect/core-utils'
+import { apId, isNil, sanitizeObjectForPostgresql } from '@inboxfm-connect/core-utils'
 import { CRITICAL_EXECUTION_EVENT_TYPES, ExecutionEvent, ExecutionEventType } from '@inboxfm-connect/shared'
 import { redisConnections } from '../database/redis-connections'
 import { pubsub } from '../helper/pubsub'
 
+const instanceId = apId()
 const memorySequences = new Map<string, number>()
 const memoryHistory = new Map<string, ExecutionEvent[]>()
 const memoryListeners = new Map<string, Set<(event: ExecutionEvent) => void>>()
@@ -51,7 +52,10 @@ const executionEventService = {
 
         // Publish via Redis pubsub if available
         try {
-            await pubsub.publish(`execution:${executionId}:events`, JSON.stringify(event))
+            await pubsub.publish(`execution:${executionId}:events`, JSON.stringify({
+                publisherId: instanceId,
+                event,
+            }))
         }
         catch (err) {
             // Ignore pubsub failures when Redis is offline/unconfigured (e.g. unit test mode)
@@ -87,38 +91,80 @@ const executionEventService = {
         executionId: string
         listener: (event: ExecutionEvent) => void
     }): Promise<void> {
-        if (!memoryListeners.has(executionId)) {
-            memoryListeners.set(executionId, new Set())
+        let listeners = memoryListeners.get(executionId)
+        if (isNil(listeners)) {
+            listeners = new Set()
+            memoryListeners.set(executionId, listeners)
         }
-        memoryListeners.get(executionId)!.add(listener)
+        const isFirstListener = listeners.size === 0
+        listeners.add(listener)
 
-        try {
-            await pubsub.subscribe(`execution:${executionId}:events`, (message) => {
-                try {
-                    const event = JSON.parse(message) as ExecutionEvent
-                    listener(event)
-                }
-                catch (err) {
-                    // Ignore malformed messages
-                }
-            })
-        }
-        catch (err) {
-            // Pubsub unavailable in offline unit tests
+        if (isFirstListener) {
+            try {
+                await pubsub.subscribe(`execution:${executionId}:events`, (message) => {
+                    try {
+                        const parsed = JSON.parse(message)
+                        const isEnvelope = parsed && typeof parsed === 'object' && 'event' in parsed
+                        const publisherId = isEnvelope ? parsed.publisherId : null
+                        const event = (isEnvelope ? parsed.event : parsed) as ExecutionEvent
+
+                        if (publisherId === instanceId) {
+                            return
+                        }
+
+                        const activeListeners = memoryListeners.get(executionId)
+                        if (!isNil(activeListeners)) {
+                            for (const activeListener of activeListeners) {
+                                try {
+                                    activeListener(event)
+                                }
+                                catch (err) {
+                                    // Ignore listener errors
+                                }
+                            }
+                        }
+                    }
+                    catch (err) {
+                        // Ignore malformed messages
+                    }
+                })
+            }
+            catch (err) {
+                // Pubsub unavailable in offline unit tests
+            }
         }
     },
 
     async unsubscribe({
         executionId,
+        listener,
     }: {
         executionId: string
+        listener?: (event: ExecutionEvent) => void
     }): Promise<void> {
-        memoryListeners.delete(executionId)
-        try {
-            await pubsub.unsubscribe(`execution:${executionId}:events`)
+        if (!isNil(listener)) {
+            const listeners = memoryListeners.get(executionId)
+            if (!isNil(listeners)) {
+                listeners.delete(listener)
+                if (listeners.size === 0) {
+                    memoryListeners.delete(executionId)
+                    try {
+                        await pubsub.unsubscribe(`execution:${executionId}:events`)
+                    }
+                    catch (err) {
+                        // Ignore pubsub failures
+                    }
+                }
+            }
         }
-        catch (err) {
-            // Ignore pubsub failures
+        else {
+            memoryListeners.delete(executionId)
+            try {
+                await pubsub.unsubscribe(`execution:${executionId}:events`)
+            }
+            catch (err) {
+                // Ignore pubsub failures
+            }
         }
     },
 
