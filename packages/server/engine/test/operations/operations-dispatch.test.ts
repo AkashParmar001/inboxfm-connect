@@ -87,6 +87,35 @@ describe('Engine Operations Dispatch (Issue #166)', () => {
         expect(result.error).toBeDefined()
     })
 
+    it('guarantees distinct enum discriminator values across wire protocol', () => {
+        expect(EngineOperationType.EXECUTE_VALIDATE_AUTH).toBe('EXECUTE_VALIDATE_AUTH')
+        expect(EngineOperationType.EXECUTE_REFRESH_TOKEN_AUTH).toBe('EXECUTE_REFRESH_TOKEN_AUTH')
+        expect(EngineOperationType.EXECUTE_VALIDATE_AUTH).not.toBe(
+            EngineOperationType.EXECUTE_REFRESH_TOKEN_AUTH
+        )
+    })
+
+    it('dispatches wire-serialized string operation types to their distinct handlers', async () => {
+        const refreshSpy = vi.spyOn(authRefreshOperation, 'execute').mockResolvedValue({
+            status: EngineResponseStatus.OK,
+            response: { skipped: false, access_token: 'wire_token' },
+        })
+        const validateSpy = vi.spyOn(authValidationOperation, 'execute').mockResolvedValue({
+            status: EngineResponseStatus.OK,
+            response: { valid: true },
+        })
+
+        // Wire path sending raw string value
+        const refreshResult = await execute('EXECUTE_REFRESH_TOKEN_AUTH' as any, sampleAuthPayload as any)
+        expect(refreshSpy).toHaveBeenCalledTimes(1)
+        expect(validateSpy).not.toHaveBeenCalled()
+        expect(refreshResult.status).toBe(EngineResponseStatus.OK)
+
+        const validateResult = await execute('EXECUTE_VALIDATE_AUTH' as any, sampleAuthPayload as any)
+        expect(validateSpy).toHaveBeenCalledTimes(1)
+        expect(validateResult.status).toBe(EngineResponseStatus.OK)
+    })
+
     it('returns INTERNAL_ERROR for an unknown or unsupported operation type', async () => {
         const result = await execute('UNKNOWN_OPERATION' as any, sampleAuthPayload as any)
 
