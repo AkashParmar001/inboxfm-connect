@@ -42,7 +42,7 @@ export const AgentEntity = new EntitySchema<AgentSchema>({
         tools: {
             type: 'jsonb',
             nullable: false,
-            default: () => "'[]'",
+            default: () => '\'[]\'',
         },
         structuredOutput: {
             type: 'jsonb',
