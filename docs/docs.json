@@ -11,7 +11,7 @@
       "links": [
          {
             "label": "GitHub",
-            "href": "https://github.com/inboxfm-connect/inboxfm-connect"
+            "href": "https://github.com/Mihir-Rabari/inboxfm-connect"
          },
          {
             "label": "Integrations",
@@ -105,15 +105,10 @@
                   ]
                },
                {
-                  "group": "Flows",
+                  "group": "Connect SDK",
                   "pages": [
-                     "flows/building-flows",
-                     "flows/passing-data",
-                     "flows/using-formulas",
-                     "flows/formula-reference",
-                     "flows/publishing-flows",
-                     "flows/debugging-runs",
-                     "flows/versioning"
+                     "connect-sdk/overview",
+                     "connect-sdk/reference"
                   ]
                },
                {
@@ -124,10 +119,15 @@
                   ]
                },
                {
-                  "group": "Connect SDK",
+                  "group": "Inherited workflow reference",
                   "pages": [
-                     "connect-sdk/overview",
-                     "connect-sdk/reference"
+                     "flows/building-flows",
+                     "flows/passing-data",
+                     "flows/using-formulas",
+                     "flows/formula-reference",
+                     "flows/publishing-flows",
+                     "flows/debugging-runs",
+                     "flows/versioning"
                   ]
                },
                {
@@ -667,7 +667,7 @@
    "footer": {
       "socials": {
          "x": "https://x.com/inboxfm-connect",
-         "github": "https://github.com/inboxfm-connect/inboxfm-connect",
+         "github": "https://github.com/Mihir-Rabari/inboxfm-connect",
          "linkedin": "https://linkedin.com/company/inboxfm-connect"
       }
    }
