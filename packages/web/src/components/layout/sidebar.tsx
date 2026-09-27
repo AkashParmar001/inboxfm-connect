@@ -108,7 +108,7 @@ export function Sidebar({ className }: { className?: string }) {
             <DropdownMenuTrigger className="flex flex-1 items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-muted text-foreground transition-colors outline-none cursor-pointer">
               <div className="flex flex-col truncate">
                 <span className="text-xs font-bold leading-tight truncate">
-                  {currentProject?.displayName || 'InboxFM Main Project'}
+                  {currentProject?.displayName || t('InboxFM Main Project')}
                 </span>
                 <span className="text-[10px] text-muted-foreground leading-tight">{t('Developer Console')}</span>
               </div>

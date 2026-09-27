@@ -1,5 +1,6 @@
 import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
+import HttpBackend from 'i18next-http-backend'
 import { initReactI18next } from 'react-i18next'
 import enTranslation from '../../../public/locales/en/translation.json'
 
@@ -12,12 +13,16 @@ const resources = {
 }
 
 void i18n
+  .use(HttpBackend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     fallbackLng: defaultLanguage,
-    lng: defaultLanguage,
+    load: 'languageOnly',
     resources,
+    backend: {
+      loadPath: '/locales/{{lng}}/{{ns}}.json',
+    },
     interpolation: {
       escapeValue: false,
     },
@@ -28,12 +33,14 @@ void i18n
     returnNull: false,
   })
 
-function changeLanguage({ language }: { language: string }): Promise<unknown> {
+function changeLanguage(arg: string | { language: string }): Promise<unknown> {
+  const language = typeof arg === 'string' ? arg : arg.language
   return i18n.changeLanguage(language)
 }
 
 function getLanguage(): string {
-  return i18n.language || defaultLanguage
+  const lang = i18n.language || defaultLanguage
+  return lang.split('-')[0]
 }
 
 export const i18nUtils = {
