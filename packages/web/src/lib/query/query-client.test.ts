@@ -50,6 +50,22 @@ describe('QueryClient Error Handling & Toast Feedback (Issue #29 / DESIGN_SYSTEM
     })
   })
 
+  it('surfaces errors for the shared showErrorDialog convention', async () => {
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ['dialog-error-test'],
+        queryFn: () => Promise.reject(new ApiClientError(500, 'Page unavailable')),
+        meta: { showErrorDialog: true },
+        retry: false,
+      })
+    ).rejects.toThrow()
+
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledWith('Query Failed', {
+      description: 'Page unavailable',
+    })
+  })
+
   it('does NOT trigger sonner toast error when a query explicitly disables showErrorToast', async () => {
     const error = new ApiClientError(500, 'Silent Failure')
 
