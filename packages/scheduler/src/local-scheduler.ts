@@ -6,7 +6,8 @@ const activeTasks = new Map<string, cron.ScheduledTask | NodeJS.Timeout>()
 function handleError(id: string, name: string, error: unknown, onError?: (ctx: SchedulerTaskErrorContext) => void): void {
     if (onError) {
         onError({ id, name, error })
-    } else {
+    }
+    else {
         console.error(`[LocalScheduler] Error in task "${name}" (${id}):`, error)
     }
 }
@@ -21,7 +22,8 @@ const localSchedulerImpl: Scheduler = {
                 if (res instanceof Promise) {
                     res.catch((err) => handleError(id, name, err, onError))
                 }
-            } catch (err) {
+            }
+            catch (err) {
                 handleError(id, name, err, onError)
             }
         }, delayMs)
@@ -37,7 +39,8 @@ const localSchedulerImpl: Scheduler = {
                 if (res instanceof Promise) {
                     res.catch((err) => handleError(id, name, err, onError))
                 }
-            } catch (err) {
+            }
+            catch (err) {
                 handleError(id, name, err, onError)
             }
         }, intervalMs)
@@ -45,19 +48,27 @@ const localSchedulerImpl: Scheduler = {
         return id
     },
 
-    async cron({ name, cronExpression, fn, onError }): Promise<string> {
+    async cron({ name, cronExpression, timezone, recoverMissedExecutions, fn, onError }): Promise<string> {
         const id = name
         await this.cancel(id)
-        const task = cron.schedule(cronExpression, () => {
-            try {
-                const res = fn()
-                if (res instanceof Promise) {
-                    res.catch((err) => handleError(id, name, err, onError))
+        const task = cron.schedule(
+            cronExpression,
+            () => {
+                try {
+                    const res = fn()
+                    if (res instanceof Promise) {
+                        res.catch((err) => handleError(id, name, err, onError))
+                    }
                 }
-            } catch (err) {
-                handleError(id, name, err, onError)
-            }
-        })
+                catch (err) {
+                    handleError(id, name, err, onError)
+                }
+            },
+            {
+                timezone,
+                recoverMissedExecutions: recoverMissedExecutions ?? false,
+            },
+        )
         activeTasks.set(id, task)
         return id
     },
@@ -69,7 +80,8 @@ const localSchedulerImpl: Scheduler = {
         }
         if ('stop' in task) {
             task.stop()
-        } else {
+        }
+        else {
             clearTimeout(task)
             clearInterval(task)
         }
@@ -80,12 +92,25 @@ const localSchedulerImpl: Scheduler = {
         for (const task of activeTasks.values()) {
             if ('stop' in task) {
                 task.stop()
-            } else {
+            }
+            else {
                 clearTimeout(task)
                 clearInterval(task)
             }
         }
         activeTasks.clear()
+    },
+
+    has(id: string): boolean {
+        return activeTasks.has(id)
+    },
+
+    getActiveTaskCount(): number {
+        return activeTasks.size
+    },
+
+    getTaskIds(): string[] {
+        return Array.from(activeTasks.keys())
     },
 }
 

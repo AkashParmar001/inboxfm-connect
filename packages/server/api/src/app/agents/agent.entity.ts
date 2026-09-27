@@ -3,8 +3,8 @@ import { EntitySchema } from 'typeorm'
 import { ApIdSchema, BaseColumnSchemaPart } from '../database/database-common'
 
 export type AgentSchema = Agent & {
-    project: Project
-    platform: Platform
+    project?: Project
+    platform?: Platform
 }
 
 export const AgentEntity = new EntitySchema<AgentSchema>({
