@@ -62,11 +62,27 @@ describe('FetchHttpClient TLS security', () => {
     expect(process.env['NODE_TLS_REJECT_UNAUTHORIZED']).toBeUndefined()
   })
 
-  it('propagates TLS connection rejection when self-signed certificate fails verification', async () => {
-    const tlsError = new TypeError('fetch failed')
-    Object.assign(tlsError, {
-      cause: new Error('self signed certificate in certificate chain'),
+  it('preserves an existing NODE_TLS_REJECT_UNAUTHORIZED environment setting without mutating it', async () => {
+    process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1'
+    const mockResponse = new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse)
+
+    const client = new FetchHttpClient()
+    await client.sendRequest({
+      method: HttpMethod.GET,
+      url: 'https://example.com/api',
+    })
+
+    expect(process.env['NODE_TLS_REJECT_UNAUTHORIZED']).toBe('1')
+  })
+
+  it('propagates TLS connection rejection when self-signed certificate fails verification', async () => {
+    const tlsCause = new Error('self signed certificate in certificate chain')
+    const tlsError = new TypeError('fetch failed')
+    Object.assign(tlsError, { cause: tlsCause })
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(tlsError)
 
     const client = new FetchHttpClient()
@@ -75,7 +91,13 @@ describe('FetchHttpClient TLS security', () => {
         method: HttpMethod.GET,
         url: 'https://self-signed.badssl.com/',
       })
-    ).rejects.toThrow('fetch failed')
+    ).rejects.toSatisfy((err: unknown) => {
+      return (
+        err instanceof TypeError &&
+        err.message === 'fetch failed' &&
+        (err as any).cause === tlsCause
+      )
+    })
 
     expect(process.env['NODE_TLS_REJECT_UNAUTHORIZED']).toBeUndefined()
   })
