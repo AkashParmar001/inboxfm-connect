@@ -80,10 +80,12 @@ export type CloudflareGatewayProviderConfig = z.infer<typeof CloudflareGatewayPr
 export const DEFAULT_AZURE_API_VERSION = '2024-10-21'
 
 export const AzureProviderConfig = z.object({
-    resourceName: z.string(),
+    resourceName: z.string().regex(/^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/, {
+        message: 'Azure resource name must contain only alphanumeric characters and hyphens, and start and end with an alphanumeric character',
+    }),
     apiVersion: z.preprocess(
         (v) => (typeof v === 'string' && v.trim().length === 0 ? undefined : v),
-        z.string().optional(),
+        z.string().regex(/^[a-zA-Z0-9_.-]+$/).optional(),
     ),
 })
 export type AzureProviderConfig = z.infer<typeof AzureProviderConfig>
