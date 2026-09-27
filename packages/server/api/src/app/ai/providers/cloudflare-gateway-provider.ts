@@ -80,21 +80,45 @@ export const cloudflareGatewayProvider: AIProviderStrategy<CloudflareGatewayProv
     },
 }
 
-function createSafeFetch(extraHeaders: Record<string, string>): typeof fetch {
+export function createSafeFetch(extraHeaders?: Record<string, string>): typeof fetch {
     return async (input, init) => {
-        const url = input instanceof URL ? input.toString() : (typeof input === 'string' ? input : input.url)
+        let url: string
+        let requestHeaders: HeadersInit | undefined
+        if (typeof input === 'string') {
+            url = input
+        }
+        else if (input instanceof URL) {
+            url = input.toString()
+        }
+        else {
+            url = input.url
+            requestHeaders = input.headers
+        }
+
         const client = safeHttp.createAxios()
         const response = await client.request<ArrayBuffer>({
             method: init?.method ?? 'GET',
             url,
-            headers: { ...extraHeaders, ...normalizeHeaders(init?.headers) },
+            headers: {
+                ...(extraHeaders ?? {}),
+                ...normalizeHeaders(requestHeaders),
+                ...normalizeHeaders(init?.headers),
+            },
             data: init?.body,
+            signal: init?.signal ?? undefined,
+            timeout: 10000,
+            maxContentLength: 10 * 1024 * 1024,
+            maxBodyLength: 10 * 1024 * 1024,
             responseType: 'arraybuffer',
             validateStatus: () => true,
         })
+        const headers = typeof response.headers?.toJSON === 'function'
+            ? response.headers.toJSON()
+            : (response.headers as Record<string, string>)
         return new Response(Buffer.from(response.data), {
             status: response.status,
-            headers: response.headers as Record<string, string>,
+            statusText: response.statusText,
+            headers: headers as HeadersInit,
         })
     }
 }

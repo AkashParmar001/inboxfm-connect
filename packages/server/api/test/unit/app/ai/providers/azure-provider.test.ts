@@ -21,12 +21,14 @@ describe('Azure Provider & SSRF Safety (#163)', () => {
     })
 
     describe('AzureProviderConfig Schema', () => {
-        it('accepts valid Azure resource names', () => {
+        it('accepts valid Azure resource names (2 to 64 characters)', () => {
             const valid = [
                 'my-openai-resource',
                 'openai123',
                 'a-b-c-d',
                 'azure-resource-2024',
+                'ab', // minimum length 2
+                'a' + 'b'.repeat(62) + 'c', // maximum length 64
             ]
             for (const resourceName of valid) {
                 const parsed = AzureProviderConfig.safeParse({ resourceName })
@@ -34,8 +36,11 @@ describe('Azure Provider & SSRF Safety (#163)', () => {
             }
         })
 
-        it('rejects host-manipulating and SSRF injection resource names', () => {
+        it('rejects host-manipulating, single-char, and out-of-bounds resource names', () => {
             const malicious = [
+                'a', // rejected: single character (Azure requires 2-64)
+                '1', // rejected: single character
+                'a' + 'b'.repeat(63) + 'c', // rejected: 65 characters (exceeds 64)
                 'attacker.com#',
                 '169.254.169.254',
                 'internal.corp/evil',
