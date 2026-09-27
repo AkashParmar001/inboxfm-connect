@@ -6,6 +6,6 @@ const build = spawnSync('bun', ['x', 'turbo', 'run', 'build', '--concurrency=2',
 if (build.error) throw build.error
 if (build.status !== 0) process.exit(build.status ?? 1)
 
-const result = spawnSync(process.execPath, [require.resolve('playwright/cli'), 'test', '--config=packages/tests-e2e/playwright.config.ts', ...process.argv.slice(2)], { stdio: 'inherit' })
+const result = spawnSync(process.execPath, [require.resolve('@playwright/test/cli'), 'test', '--config=packages/tests-e2e/playwright.config.ts', ...process.argv.slice(2)], { stdio: 'inherit' })
 if (result.error) throw result.error
 process.exit(result.status ?? 1)
