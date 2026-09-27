@@ -15,13 +15,13 @@
          },
          {
             "label": "Integrations",
-            "href": "https://www.inboxfm-connect.com/integrations"
+            "href": "https://github.com/Mihir-Rabari/inboxfm-connect/tree/dev/packages/integrations"
          }
       ],
       "primary": {
          "type": "button",
          "label": "Get Started",
-         "href": "https://www.inboxfm-connect.com/plans"
+         "href": "/connect-sdk/overview"
       }
    },
    "redirects": [
