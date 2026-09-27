@@ -8,7 +8,8 @@ The primary [CI workflow](../.github/workflows/ci.yml) runs on every PR without 
 | --- | --- | --- |
 | Repository policy | PR base, workflow syntax, license notices/new Enterprise imports, benchmark gate self-tests | `npm run check-licenses`, `npm run test-bench-gate` |
 | Checks (quality) | Lint non-integration packages, web/SDK types, generated SDK contracts, app build, clean-consumer SDK verification | `node tools/ci/run-check.mjs quality` |
-| Checks (unit) | Engine, shared, thin execution library, SDK, web, and API unit tests | `node tools/ci/run-check.mjs unit` |
+| Checks (unit) | Engine unit tests, shared, thin execution library, SDK, web, and API unit tests | `node tools/ci/run-check.mjs unit` |
+| Checks (engine-integration) | Engine code sandbox integration tests | `node tools/ci/run-check.mjs engine-integration` |
 | Checks (ce/ee/cloud) | An independent API integration job for each edition | `node tools/ci/run-check.mjs ce` (or `ee`/`cloud`) |
 | Checks (migrations) | Apply migrations, detect schema drift, inspect new rollback metadata | `node tools/ci/run-check.mjs migrations` |
 | Checks (integrations) | Lint changed integration packages; build all integrations when thin shared libraries, framework/common, compiler configuration, or dependencies change | `node tools/ci/run-check.mjs integrations` |

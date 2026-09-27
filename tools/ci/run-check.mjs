@@ -12,8 +12,11 @@ switch (suite) {
         execFileSync('npm', ['run', 'pack:verify', '--workspace=@inboxfm-connect/sdk'], { stdio: 'inherit' })
         break
     case 'unit':
-        turbo('test', '--concurrency=2', '--filter=@inboxfm-connect/engine', '--filter=@inboxfm-connect/shared', '--filter=@inboxfm-connect/core-execution', '--filter=@inboxfm-connect/sdk', '--filter=@inboxfm-connect/web')
-        turbo('test-unit', '--filter=api')
+        turbo('test', '--concurrency=2', '--filter=@inboxfm-connect/shared', '--filter=@inboxfm-connect/core-execution', '--filter=@inboxfm-connect/sdk', '--filter=@inboxfm-connect/web')
+        turbo('test-unit', '--filter=api', '--filter=@inboxfm-connect/engine')
+        break
+    case 'engine-integration':
+        turbo('test-integration', '--filter=@inboxfm-connect/engine')
         break
     case 'ce':
     case 'ee':
