@@ -10,6 +10,8 @@ The consuming developer builds the product, authenticates its customers, and cho
 
 This is the same product category as Pipedream Connect. It is a direction for this fork, not a claim of compatibility, endorsement, or feature parity.
 
+Self-hosting changes the operating model: the operator owns provider app registration, encryption keys, databases, refresh reliability, runtime isolation, upgrades, and integration maintenance. Deployment control is a reason to build this platform; it does not remove those responsibilities or demonstrate production readiness.
+
 ## What the Pipedream research establishes
 
 [Pipedream's Connect overview](https://pipedream.com/docs/connect) describes a developer toolkit for adding integrations to another product, with end users identified by `external_user_id`, managed authorization, connection links, tools, and triggers. That fits the supplied product vision.
