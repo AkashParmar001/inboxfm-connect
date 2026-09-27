@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAIProviderModelsQuery } from '@/lib/query/hooks'
-import { AIProviderName } from '@inboxfm-connect/shared'
+import { AIProviderName } from '@/lib/api/ai-providers'
 
 export interface AIModelBrowserDialogProps {
   open: boolean

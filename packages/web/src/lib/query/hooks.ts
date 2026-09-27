@@ -1,10 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AIProviderName,
+import type {
   CreateAIProviderRequest,
   UpdateAIProviderRequest,
 } from '@inboxfm-connect/shared'
-import { aiProvidersApi } from '../api/ai-providers'
+import { AIProviderName, aiProvidersApi } from '../api/ai-providers'
 import { apiKeysApi } from '../api/api-keys'
 import { automationsApi } from '../api/automations'
 import { billingApi } from '../api/billing'

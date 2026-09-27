@@ -1,6 +1,8 @@
 import { AIProviderName, BaseModelSchema } from '@inboxfm-connect/core-utils'
 import { z } from 'zod'
 
+export { AIProviderName } from '@inboxfm-connect/core-utils'
+
 export enum AIProviderModelType {
     IMAGE = 'image',
     TEXT = 'text',

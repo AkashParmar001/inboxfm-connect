@@ -10,14 +10,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import {
+import type {
   AIProviderAuthConfig,
   AIProviderConfig,
-  AIProviderName,
   AIProviderWithoutSensitiveData,
   CreateAIProviderRequest,
   UpdateAIProviderRequest,
 } from '@inboxfm-connect/shared'
+import { AIProviderName } from '@/lib/api/ai-providers'
 
 const PROVIDER_OPTIONS: { name: AIProviderName; label: string; defaultDisplayName: string }[] = [
   { name: AIProviderName.OPENAI, label: 'OpenAI', defaultDisplayName: 'OpenAI' },

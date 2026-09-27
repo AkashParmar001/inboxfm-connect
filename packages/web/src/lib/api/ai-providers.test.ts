@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { aiProvidersApi } from './ai-providers'
+import { aiProvidersApi, AIProviderModelType, AIProviderName } from './ai-providers'
 import { apiClient } from './client'
-import { AIProviderModelType, AIProviderName } from '@inboxfm-connect/shared'
 
 describe('aiProvidersApi', () => {
   beforeEach(() => {

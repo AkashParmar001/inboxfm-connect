@@ -9,12 +9,11 @@ import { ThemeProvider } from '@/lib/theme/theme-provider'
 import { stubApi } from '@/test/api-stub'
 import { testProject, testUser } from '@/test/fixtures/api-keys'
 import { createTestQueryClient, mount, waitFor } from '@/test/test-utils'
-import {
-  AIProviderModelType,
-  AIProviderName,
+import type {
   CreateAIProviderRequest,
   UpdateAIProviderRequest,
 } from '@inboxfm-connect/shared'
+import { AIProviderModelType, AIProviderName } from '@/lib/api/ai-providers'
 
 const PROJECT = testProject()
 
@@ -177,7 +176,7 @@ describe('AI Provider management in Settings page', () => {
       {
         match: AI_PROVIDERS_CREATE_MATCH,
         respond: (_url, _init, body) => {
-          createdPayload = body
+          createdPayload = body as CreateAIProviderRequest
           return { status: 201, body: {} }
         },
       },
@@ -220,8 +219,9 @@ describe('AI Provider management in Settings page', () => {
     await submitDialogForm()
 
     await waitFor(() => createdPayload !== null)
-    expect(createdPayload.provider).toBe(AIProviderName.OPENAI)
-    expect(createdPayload.auth.apiKey).toBe('sk-test-key-12345')
+    const payload = createdPayload as unknown as CreateAIProviderRequest
+    expect(payload.provider).toBe(AIProviderName.OPENAI)
+    expect((payload.auth as { apiKey: string }).apiKey).toBe('sk-test-key-12345')
   })
 
   it('displays validation error banner inside dialog when API key validation fails', async () => {
@@ -313,7 +313,7 @@ describe('AI Provider management in Settings page', () => {
       {
         match: AI_PROVIDER_UPDATE_MATCH,
         respond: (_url, _init, body) => {
-          updatePayload = body
+          updatePayload = body as UpdateAIProviderRequest
           return { status: 200, body: {} }
         },
       },
@@ -332,8 +332,9 @@ describe('AI Provider management in Settings page', () => {
     })
 
     await waitFor(() => updatePayload !== null)
-    expect(updatePayload.displayName).toBe('Anthropic Claude')
-    expect(updatePayload.enabledForChat).toBe(true)
+    const payload = updatePayload as unknown as UpdateAIProviderRequest
+    expect(payload.displayName).toBe('Anthropic Claude')
+    expect(payload.enabledForChat).toBe(true)
   })
 
   it('allows removing an AI provider with confirm dialog', async () => {

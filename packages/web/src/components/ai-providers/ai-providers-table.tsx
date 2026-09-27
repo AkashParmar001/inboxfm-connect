@@ -9,7 +9,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { AIProviderName, AIProviderWithoutSensitiveData } from '@inboxfm-connect/shared'
+import type { AIProviderWithoutSensitiveData } from '@inboxfm-connect/shared'
+import { AIProviderName } from '@/lib/api/ai-providers'
 
 export interface AIProvidersTableProps {
   providers: AIProviderWithoutSensitiveData[]

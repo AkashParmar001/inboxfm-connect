@@ -23,7 +23,7 @@ import {
   useUpdateAIProviderMutation,
 } from '@/lib/query/hooks'
 import { useTheme } from '@/lib/theme/theme-provider'
-import {
+import type {
   AIProviderWithoutSensitiveData,
   CreateAIProviderRequest,
   UpdateAIProviderRequest,
