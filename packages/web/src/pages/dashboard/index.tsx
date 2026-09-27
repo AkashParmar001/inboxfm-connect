@@ -33,7 +33,7 @@ import {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { data: integrations, isLoading: isIntegrationsLoading } = useIntegrations()
+  const { data: integrationsData, isLoading: isIntegrationsLoading } = useIntegrations()
   const { data: connections, isLoading: isConnectionsLoading } = useConnectionsQuery()
   const { data: triggerBindings, isLoading: isTriggersLoading } = useTriggerBindingsQuery()
   const { data: scheduledTasks, isLoading: isSchedulesLoading } = useScheduledTasksQuery()
@@ -46,9 +46,10 @@ export default function DashboardPage() {
 
   const connectionList = connections?.data || []
   const executions = executionsData?.data || []
+  const integrationList = integrationsData?.data || []
 
   // Count available tools across integrations
-  const totalToolsCount = integrations?.reduce((acc, piece) => acc + (piece.actions || 0), 0) || 0
+  const totalToolsCount = integrationList.reduce((acc, piece) => acc + (piece.actions || 0), 0)
   const activeConnectionsCount = connectionList.filter((c) => c.status === 'ACTIVE').length
   const activeTriggersCount = triggerBindings?.filter((t) => t.status === 'ENABLED').length || 0
   const activeSchedulesCount = scheduledTasks?.filter((s) => s.status === 'ENABLED').length || 0
@@ -85,11 +86,11 @@ export default function DashboardPage() {
               <Skeleton className="h-7 w-16" />
             ) : (
               <div className="text-2xl font-bold tracking-tight text-foreground">
-                {totalToolsCount > 0 ? totalToolsCount : integrations?.length || 0}
+                {totalToolsCount}
               </div>
             )}
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Across {integrations?.length || 0} integrations
+              Across {integrationList.length} integrations
             </p>
           </div>
         </Card>
