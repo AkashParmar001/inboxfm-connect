@@ -1,9 +1,10 @@
-import { Permission, PrincipalType, ProjectReplaceApplyRequest, ProjectStateSnapshot } from '@inboxfm-connect/shared'
+import { Permission, PlatformRole, PrincipalType, ProjectReplaceApplyRequest, ProjectStateSnapshot } from '@inboxfm-connect/shared'
 import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
 import { ProjectResourceType } from '../../core/security/authorization/common'
 import { securityAccess } from '../../core/security/authorization/fastify-security'
+import { userService } from '../../user/user-service'
 import { projectReplaceService } from './project-replace.service'
 
 const ProjectParamsSchema = z.object({
@@ -60,7 +61,41 @@ export const projectReplaceController: FastifyPluginAsyncZod = async (fastify) =
         })
     })
 
-    // 3. Apply reviewed plan artifact (validates signature, checks drift, applies ordered mutations)
+    // 3. Inspect-only endpoint (zero mutations, accessible with READ_PROJECT permission)
+    fastify.post('/inspect', {
+        schema: {
+            params: ProjectParamsSchema,
+            body: z.object({
+                plan: ProjectReplaceApplyRequest.shape.plan,
+                snapshot: ProjectStateSnapshot,
+            }),
+        },
+        config: {
+            security: securityAccess.project(
+                [PrincipalType.USER, PrincipalType.SERVICE],
+                Permission.READ_PROJECT,
+                { type: ProjectResourceType.PARAM },
+            ),
+        },
+    }, async (request, reply) => {
+        const projectId = request.params.projectId
+        const platformId = request.principal.platform.id
+        const result = await projectReplaceService(request.log).applyPlan({
+            targetProjectId: projectId,
+            targetPlatformId: platformId,
+            request: {
+                plan: request.body.plan,
+                snapshot: request.body.snapshot,
+                dryRun: false,
+                force: false,
+                inspectOnly: true,
+            },
+            snapshot: request.body.snapshot,
+        })
+        return reply.status(StatusCodes.OK).send(result)
+    })
+
+    // 4. Apply reviewed plan artifact (validates signature, checks drift, applies ordered mutations)
     fastify.post('/apply', {
         schema: {
             params: ProjectParamsSchema,
@@ -69,6 +104,8 @@ export const projectReplaceController: FastifyPluginAsyncZod = async (fastify) =
                 snapshot: ProjectStateSnapshot,
                 dryRun: z.boolean().optional(),
                 force: z.boolean().optional(),
+                deployCustomIntegrations: z.boolean().optional(),
+                inspectOnly: z.boolean().optional(),
             }),
         },
         config: {
@@ -81,13 +118,29 @@ export const projectReplaceController: FastifyPluginAsyncZod = async (fastify) =
     }, async (request, reply) => {
         const projectId = request.params.projectId
         const platformId = request.principal.platform.id
+
+        if (request.body.deployCustomIntegrations) {
+            if (request.principal.type === PrincipalType.USER) {
+                const user = await userService(request.log).getOneOrFail({ id: request.principal.id })
+                if (user.platformRole !== PlatformRole.ADMIN) {
+                    return reply.status(StatusCodes.FORBIDDEN).send({
+                        code: 'PERMISSION_DENIED',
+                        message: 'Deploying custom integrations platform-wide requires platform administrator permissions.',
+                    })
+                }
+            }
+        }
+
         const result = await projectReplaceService(request.log).applyPlan({
             targetProjectId: projectId,
             targetPlatformId: platformId,
             request: {
                 plan: request.body.plan,
+                snapshot: request.body.snapshot,
                 dryRun: request.body.dryRun,
                 force: request.body.force,
+                deployCustomIntegrations: request.body.deployCustomIntegrations,
+                inspectOnly: request.body.inspectOnly,
             },
             snapshot: request.body.snapshot,
         })
@@ -146,6 +199,7 @@ export const projectReplaceController: FastifyPluginAsyncZod = async (fastify) =
             targetPlatformId: platformId,
             request: {
                 plan,
+                snapshot: request.body.snapshot,
                 dryRun: false,
                 force: request.body.force,
             },
