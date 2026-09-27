@@ -17,7 +17,8 @@ function stubBackend() {
   }
   const stubFetch = async (input: RequestInfo | URL): Promise<Response> => {
     const url = String(input)
-    if (url.includes('/projects')) {
+    const pathname = new URL(url, 'http://localhost').pathname
+    if (pathname === '/api/v1/projects') {
       return new Response(JSON.stringify({ data: [mockProject] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -128,5 +129,41 @@ describe('router', () => {
 
     expect(router.state.location.pathname).toBe('/login')
     expect(container.querySelector('aside')).toBeNull()
+  }, 15000)
+
+  it('navigates to /actions when clicking the empty-state CTA on dashboard', async () => {
+    const container = await renderRouterAt('/')
+
+    await waitFor(() => container.textContent?.includes('Explore Tools to Test') === true)
+
+    const ctaButton = Array.from(container.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Explore Tools to Test')
+    )
+    expect(ctaButton).toBeDefined()
+
+    await act(async () => {
+      ctaButton?.click()
+    })
+
+    await waitFor(() => router.state.location.pathname === '/actions')
+    expect(router.state.location.pathname).toBe('/actions')
+  }, 15000)
+
+  it('navigates to /actions when clicking the empty-state CTA on activity', async () => {
+    const container = await renderRouterAt('/activity')
+
+    await waitFor(() => container.textContent?.includes('Explore Actions to Run') === true)
+
+    const ctaButton = Array.from(container.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Explore Actions to Run')
+    )
+    expect(ctaButton).toBeDefined()
+
+    await act(async () => {
+      ctaButton?.click()
+    })
+
+    await waitFor(() => router.state.location.pathname === '/actions')
+    expect(router.state.location.pathname).toBe('/actions')
   }, 15000)
 })
