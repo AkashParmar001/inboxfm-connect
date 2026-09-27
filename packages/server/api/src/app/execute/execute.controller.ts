@@ -1,28 +1,39 @@
 import { ActivepiecesError, ErrorCode, isNil, tryCatch } from '@inboxfm-connect/core-utils'
 import { HeadlessRuntime } from '@inboxfm-connect/runtime'
-import { Permission, PrincipalType } from '@inboxfm-connect/shared'
+import { apLogger } from '@inboxfm-connect/server-utils'
+import { ExecuteRequestBody, NetworkMode, Permission, PrincipalType } from '@inboxfm-connect/shared'
 import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { StatusCodes } from 'http-status-codes'
 import { ArrayContains } from 'typeorm'
 import { z } from 'zod'
 import { appConnectionService, appConnectionsRepo } from '../app-connection/app-connection-service/app-connection-service'
+import { AppConnectionSchema } from '../app-connection/app-connection.entity'
 import { ProjectResourceType } from '../core/security/authorization/common'
 import { securityAccess } from '../core/security/authorization/fastify-security'
 import { system } from '../helper/system/system'
 import { AppSystemProp } from '../helper/system/system-props'
 
-const runtime = new HeadlessRuntime({
+// The runtime's database callbacks fire outside any request, so they cannot borrow
+// request.log — they get the same structured root logger the request hook builds.
+const runtimeLog = apLogger.create({ bindings: {} })
+
+const runtime = new HeadlessRuntime<AppConnectionSchema>({
     basePath: process.cwd(),
+    log: runtimeLog,
     getSettings: () => ({
         EXECUTION_MODE: system.get(AppSystemProp.EXECUTION_MODE) ?? 'UNSANDBOXED',
         SANDBOX_MEMORY_LIMIT: system.get(AppSystemProp.SANDBOX_MEMORY_LIMIT) ?? '1048576',
         FLOW_TIMEOUT_SECONDS: Number(system.get(AppSystemProp.FLOW_TIMEOUT_SECONDS) ?? '60'),
         MAX_FLOW_RUN_LOG_SIZE_MB: Number(system.get(AppSystemProp.MAX_FLOW_RUN_LOG_SIZE_MB) ?? '1'),
         MAX_FILE_SIZE_MB: Number(system.get(AppSystemProp.MAX_FILE_SIZE_MB) ?? '10'),
-        NETWORK_MODE: system.get(AppSystemProp.NETWORK_MODE) ?? 'STRICT',
-        DEV_PIECES: system.get(AppSystemProp.DEV_PIECES) ?? '',
+        NETWORK_MODE: system.get(AppSystemProp.NETWORK_MODE) === NetworkMode.UNRESTRICTED ? NetworkMode.UNRESTRICTED : NetworkMode.STRICT,
+        DEV_PIECES: (system.get(AppSystemProp.DEV_PIECES) ?? '').split(',').map(value => value.trim()).filter(Boolean),
+        ENVIRONMENT: system.get(AppSystemProp.ENVIRONMENT) ?? '',
+        REUSE_SANDBOX: undefined,
+        SANDBOX_PROPAGATED_ENV_VARS: [],
+        SSRF_ALLOW_LIST: (system.get(AppSystemProp.SSRF_ALLOW_LIST) ?? '').split(',').map(value => value.trim()).filter(Boolean),
         WORKER_GROUP_ID: 'headless',
-        PROJECT_WORKER: 'false',
+        PROJECT_WORKER: false,
     }),
     database: {
         async getConnection({ connectionId }) {
@@ -30,7 +41,7 @@ const runtime = new HeadlessRuntime({
             return connection ?? null
         },
         async saveConnection({ connection }) {
-            await appConnectionsRepo().upsert(connection, ['id'])
+            await appConnectionsRepo().save(connection)
         },
         async deleteConnection({ connectionId }) {
             await appConnectionsRepo().delete({ id: connectionId })
@@ -41,17 +52,17 @@ const runtime = new HeadlessRuntime({
         if (!projectId) {
             throw new Error(`Connection has no projectIds: ${connection.id}`)
         }
-        return appConnectionService(console as any).decryptAndRefreshConnection(
+        return appConnectionService(runtimeLog).decryptAndRefreshConnection(
             connection,
             projectId,
-            console as any,
+            runtimeLog,
         )
     },
 })
 
 export const executeController: FastifyPluginAsyncZod = async (fastify) => {
     fastify.post('/', ExecuteRequestOptions, async (request) => {
-        const publicUrl = await system.get(AppSystemProp.FRONTEND_URL) || 'http://localhost:3000'
+        const publicUrl = system.get(AppSystemProp.FRONTEND_URL) || 'http://localhost:3000'
         const connectionId = await resolveConnectionId({
             projectId: request.projectId,
             connectionId: request.body.connectionId,
@@ -123,17 +134,10 @@ type ResolveConnectionIdParams = {
  * hook runs at `preHandler` — after zod has already stripped unknown keys — so
  * the field must be declared here or every USER principal is rejected with
  * "Project ID is required". Membership + WRITE permission on the named project
- * are still enforced by the authorization layer.
+ * are still enforced by the authorization layer. Defined in
+ * `@inboxfm-connect/shared` (`connect-execute/execute-request.ts`) so the
+ * Connect SDK's codegen can derive its request type from this same schema.
  */
-const ExecuteRequestBody = z.object({
-    projectId: z.string().optional(),
-    integration: z.string(),
-    tool: z.string(),
-    connectionId: z.string().optional(),
-    externalUserId: z.string().optional(),
-    input: z.record(z.string(), z.unknown()),
-})
-
 const ExecuteRequestOptions = {
     config: {
         security: securityAccess.project(

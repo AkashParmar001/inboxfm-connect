@@ -2,6 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "globalPassThroughEnv": [
     "AP_EDITION",
+    "REDISMS_VERSION",
     "AP_DB_TYPE",
     "AP_POSTGRES_HOST",
     "AP_POSTGRES_PORT",
@@ -97,6 +98,34 @@
       "inputs": ["src/**", "test/**", "tsconfig*.json", "vitest.config.*"],
       "outputs": ["coverage/**"]
     },
+    "test-unit": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "@inboxfm-connect/engine#test-unit": {
+      "dependsOn": [
+        "build",
+        "@inboxfm-connect/piece-http#build",
+        "@inboxfm-connect/piece-data-mapper#build",
+        "@inboxfm-connect/piece-approval#build",
+        "@inboxfm-connect/piece-webhook#build"
+      ],
+      "cache": false
+    },
+    "test-integration": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "@inboxfm-connect/engine#test-integration": {
+      "dependsOn": [
+        "build",
+        "@inboxfm-connect/piece-http#build",
+        "@inboxfm-connect/piece-data-mapper#build",
+        "@inboxfm-connect/piece-approval#build",
+        "@inboxfm-connect/piece-webhook#build"
+      ],
+      "cache": false
+    },
     "test-ce": {
       "dependsOn": ["build"],
       "cache": false
@@ -111,6 +140,14 @@
     },
     "check-migrations": {
       "dependsOn": ["build"],
+      "cache": false
+    },
+    "generate": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "generate:check": {
+      "dependsOn": ["^build"],
       "cache": false
     },
     "db-migration": {

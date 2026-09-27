@@ -1,105 +1,96 @@
-# Inboxfm Connect Architecture (Post-PR4E)
+# Inboxfm Connect architecture
 
-This document describes the certified codebase architecture of **Inboxfm Connect** following the removal of the visual workflow builder, engine, and associated legacy database layers. It provides a clean, forward-looking map of the repository's components, services, and flows.
+Inboxfm Connect is a headless fork of Activepieces. The web dashboard manages integrations, connections, API keys, and MCP servers; it does not include the upstream visual flow builder. This guide describes current module boundaries rather than promising that all inherited functionality has been removed.
 
----
+## System overview
 
-## 1. Active Packages & Monorepo Structure
-
-The monorepo is organized under `packages/*` using a clean, layered structure:
-
-```
-├── packages/
-│   ├── core/
-│   │   ├── shared/                # Core Zod schemas, types, and model declarations (non-React)
-│   │   ├── piece-types/           # Common type schemas for integrations/pieces
-│   │   ├── pieces-framework/      # Framework SDK for building custom integrations
-│   │   ├── pieces-common/         # Shared utilities for pieces (OAuth, polling, HTTP helpers)
-│   │   ├── core-utils/            # Lean framework-agnostic utilities
-│   │   └── core-formula/          # Formula parsing and evaluation engine
-│   ├── server/
-│   │   ├── api/                   # Fastify-based backend REST API server
-│   │   ├── engine/                # Runtime executor for headless pieces/tools
-│   │   ├── sandbox/               # Executor isolation Layer
-│   │   └── scheduler/             # Cron and scheduled tasks scheduler
-│   └── integrations/
-│       └── core/                  # Core piece definitions (e.g. tables)
+```mermaid
+flowchart LR
+    Browser[React dashboard] --> API[Fastify API]
+    App[Application / SDK] --> API
+    MCP[MCP client] --> API
+    API --> Security[Tenant authentication and authorization]
+    Security --> DB[(PostgreSQL / development PGlite)]
+    Security --> Runtime[HeadlessRuntime]
+    Runtime --> Engine[Engine and sandbox]
+    Engine --> Integration[Integration action or trigger]
+    Integration --> External[External service]
+    API --> Redis[(Redis / development memory Redis)]
+    Redis --> Jobs[Background jobs and scheduling]
 ```
 
----
+The public execution entry point is `packages/server/api/src/app/execute/execute.controller.ts`, which invokes `HeadlessRuntime` from `@inboxfm-connect/runtime`. Execution mode determines how the engine isolates work. `UNSANDBOXED` is for trusted development; a local demo is not evidence of production isolation.
 
-## 2. Dependency Graph & Architecture Layers
+## Package map
 
-The monorepo follows a strict **thin-to-thick** dependency flow:
+| Package directory | Responsibility |
+| --- | --- |
+| `packages/server/api` | Fastify routes, authentication, authorization, repositories, migrations, and background work |
+| `packages/runtime` | Headless runtime orchestration and its host callbacks |
+| `packages/server/engine` | Integration loading, input processing, action execution, and runtime behavior |
+| `packages/server/sandbox` | Isolation and sandbox infrastructure |
+| `packages/server/utils` | Server utilities, safe outbound HTTP, logging, connection budgets |
+| `packages/core/utils` | Thin identifiers, errors, and general utilities |
+| `packages/core/piece-types` | Thin integration contracts and schemas |
+| `packages/core/formula` | Formula processing |
+| `packages/core/execution` | Thin execution contracts and helpers |
+| `packages/core/shared` | Thick application, database, management, and inherited EE schemas |
+| `packages/integrations/framework` | Integration authoring API |
+| `packages/integrations/common` | Integration HTTP, authentication, polling, and other shared helpers |
+| `packages/integrations/core` and `community` | Core and third-party integration packages |
+| `packages/scheduler` | Cron and scheduling utilities |
+| `packages/web` | React/Vite application |
+| `packages/connect-sdk` | Public TypeScript client, generated types, examples, and package verification |
+| `packages/cli` | Integration development commands |
+| `packages/ee` and `packages/server/api/src/app/ee` | Inherited Enterprise-licensed material; see licensing limitations below |
 
-```
-api [packages/server/api] ──────────► shared [@inboxfm-connect/shared] ──► core-utils
-  │                                    │
-  └────────────────────────────────────┴──► server-utils
+Integration and engine code may import the thin core members through the integration framework. They must not acquire dependencies on `@inboxfm-connect/shared`, the API, or the Enterprise implementation.
 
-engine [packages/server/engine] ────► pieces-framework ──► piece-types / pieces-common
-```
+## Request and execution lifecycle
 
-* **Server API** depends on `@inboxfm-connect/shared` and server utilities.
-* **Integrations (Pieces)** import `@inboxfm-connect/pieces-framework` and are strictly isolated from the database or API layer.
-* **Server Engine** loads pieces dynamically to execute them within isolated sandboxes.
+1. Fastify validates the request and applies its `securityAccess` policy.
+2. Authentication establishes a principal; authorization checks its project/platform scope.
+3. The execute controller resolves the integration and the caller's connection.
+4. The runtime uses host callbacks to retrieve credentials and refresh/decrypt the connection, then dispatches the action to the engine.
+5. The action calls its external service and returns structured data. Runtime failures are translated into the API's error contract.
 
----
+SDK clients use the same HTTP boundary as other callers. Connect sessions let end users authorize a connection; a project-scoped Connect API key must not authorize another project's resources. MCP exposes available tools and schemas to compatible clients through the API's MCP module.
 
-## 3. Server Modules (API)
+## Data ownership and persistence
 
-All API endpoints are defined in `packages/server/api/src/app/` with Fastify controllers, TypeORM schemas, and services:
+The tenant hierarchy is **platform → projects → users/memberships**. Connection access, tables, API keys, sessions, executions, and other project resources must be scoped explicitly. A globally unique ID is not an authorization check.
 
-* **`authentication/`**: Handles user login, registration, and federated SSO authentication.
-* **`user/`**: User identity and profile management.
-* **`project/`**: Projects partition (multi-tenancy workspace separation).
-* **`platform/`**: Platform administration, custom branding, and billing/plans.
-* **`mcp/`**: Model Context Protocol (MCP) server endpoints exposing database tables and piece actions to LLM agents.
-* **`tables/`**: Headless data tables service (`table`, `field`, `record`, `cell` entities).
-* **`pieces/`**: Manages installation, syncing, and versioning of custom/registry pieces.
-* **`event-destinations/`**: Handlers for webhook/event streaming targets.
-* **`flags/`**: System configuration flag service.
-* **`file/`**: Uploaded file metadata and storage references.
+TypeORM entities are registered explicitly in `packages/server/api/src/app/database/database-connection.ts` through `getEntities()`. There is no automatic entity discovery. Persistent model changes require migrations and must preserve isolation.
 
----
+Development can use PGlite; production-oriented configuration uses PostgreSQL and Redis. PGlite testing mode synchronizes an in-memory schema, while migration checks exercise the migration path separately. The dedicated PostgreSQL CI suite catches driver behavior that an embedded test database can miss. Tool search's vector-backed path requires pgvector; ordinary development tests load PGlite's vector extension.
 
-## 4. Database Schema (TypeORM Entities)
+Redis supports queues, scheduled jobs, locks, and cache coordination. Concurrent work across servers must use distributed locks, BullMQ deduplication, or transactional database claiming such as `FOR UPDATE SKIP LOCKED`.
 
-Following the removal of the visual workflow database layer, the surviving tables registered in `database-connection.ts` are:
+## Modules to read first
 
-```
-PLATFORM ────► PROJECT ────► USER
-                 │
-                 ├─────────► TABLE ────► FIELD
-                 │             │
-                 │             └───────► RECORD ────► CELL
-                 │
-                 └─────────► FILE
-```
+| Change | Starting point |
+| --- | --- |
+| Execute an integration action | `packages/server/api/src/app/execute`, `packages/runtime` |
+| Embedded connection flow | `connect-api-keys`, `connect-oauth-apps`, `connect-sessions` under the API app |
+| MCP endpoints | `packages/server/api/src/app/mcp` |
+| Credentials and refresh | `packages/server/api/src/app/app-connection` |
+| Tables and records | `packages/server/api/src/app/tables` |
+| Tool index | `packages/server/api/src/app/tool-search` |
+| Request security | `packages/server/api/src/app/core/security` |
+| Database entities and migrations | `packages/server/api/src/app/database` |
+| Dashboard behavior | `packages/web/src` |
+| Client contracts | `packages/connect-sdk`, `docs/connect-sdk` |
 
-### Core Entities:
-* **`Platform`**: System instances.
-* **`Project`**: Workspaces partitioned by `projectId`.
-* **`User`** & **`UserIdentity`**: User accounts and credentials.
-* **`Table`**, **`Field`**, **`Record`**, **`Cell`**: Headless relational data tables storage.
-* **`File`**: File uploads and raw payloads.
-* **`McpServer`**: Exposes registered third-party MCP endpoints.
+Read the relevant `.agents/features/*.md`, package `AGENTS.md`, and `.claude/rules/` before implementation. Some inherited feature notes are marked stale; current source and tests take precedence.
 
----
+## Edition and licensing boundary
 
-## 5. System Flows
+The source still supports `ce`, `ee`, and `cloud` branches and contains imports from Enterprise directories, including at application registration and database boundaries. New code must not expand that dependency. Hooks provide extension points where possible, and backend feature middleware/frontend guards enforce plan access.
 
-### A. Authentication Flow
-1. User requests authenticate via local password or SAML/SSO provider.
-2. Fastify controller validates credentials, fetches user record, and signs a JWT.
-3. Every API request passes through the Fastify security hook validating tenant membership (`platformId` or `projectId`).
+**Edition or feature gates do not change copyright or grant license rights.** Existing Enterprise dependencies and modifications mean this repository must not be described as entirely MIT or cleared for unrestricted production redistribution. Preserve license notices and read [LICENSING.md](LICENSING.md). The planned removal of Enterprise implementation is tracked in [#25](https://github.com/Mihir-Rabari/inboxfm-connect/issues/25).
 
-### B. Headless Integration (Piece) Execution Flow
-1. LLM agent or MCP tool calls endpoint to execute an action.
-2. The Server API spawns or sends job details to the `HeadlessRuntime` (`packages/server/engine`).
-3. The engine spins up a node sandbox, resolves dependencies/credentials via `appConnectionService`, and executes the piece's action.
-4. Output is piped back to the caller as a structured JSON object.
+## Validation and operations
 
-### C. Queue System (BullMQ)
-- Backed by Redis.
-- Manages scheduled execution jobs, piece installation/syncing tasks, and background maintenance tasks.
+[docs/CI.md](docs/CI.md) maps the automated suites and how to reproduce them. [CONTRIBUTING.md](CONTRIBUTING.md) describes the `dev` contribution path and reviewed promotion to `main`. [SECURITY.md](SECURITY.md) describes private disclosure.
+
+Production deployment additionally requires reviewing licensing, secrets, tenant boundaries, outbound HTTP, execution isolation, database/Redis capacity, backup/restore, and external-service configuration. The development environment and its checked-in test credentials are only for local work.

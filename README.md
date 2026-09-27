@@ -1,125 +1,99 @@
-<h1 align="center">
-  <br>
-  <b>Inboxfm Connect</b>
-  <br>
-</h1>
+# Inboxfm Connect
 
-<p align="center">
-  <b>Open-source AI-first workflow automation platform. 400+ integrations. Native MCP support.</b>
-</p>
+[![CI](https://github.com/Mihir-Rabari/inboxfm-connect/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Mihir-Rabari/inboxfm-connect/actions/workflows/ci.yml)
+[![Contribute to dev](https://img.shields.io/badge/PRs-target%20dev-blue)](CONTRIBUTING.md)
 
-<p align="center">
-  <a href="/LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple.svg?style=for-the-badge" alt="License" /></a>
-  <a href="https://github.com/Mihir-Rabari/inboxfm-connect"><img src="https://img.shields.io/badge/edition-CE%20%7C%20EE%20%7C%20Cloud-blue?style=for-the-badge" alt="Editions" /></a>
-  <a href="https://typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" /></a>
-</p>
+A headless integration platform for AI applications: connect user accounts, discover tools, and execute integration actions through REST, MCP, or a TypeScript SDK.
 
-<br>
+Inboxfm Connect is an independent fork of [Activepieces](https://github.com/activepieces/activepieces). It builds on the upstream integration ecosystem and replaces the visual flow builder with a headless application. See [upstream credits](UPSTREAM_CREDITS.md). This fork is not affiliated with or endorsed by Activepieces.
 
-## 🚀 Overview
+**Development preview:** use it for local experiments and hackathon projects. Production hardening and removal of inherited Enterprise dependencies are still tracked work. The repository contains both MIT and Enterprise-licensed material; see [licensing](LICENSING.md) before deploying or redistributing it.
 
-**Inboxfm Connect** is an open-source, AI-first workflow automation platform designed to empower AI agents, developers, and teams. Built from the ground up with TypeScript, Inboxfm Connect provides seamless integration capabilities through native **Model Context Protocol (MCP)** servers, headless relational data tables, and an extensible type-safe framework.
+## What you can build
 
-Whether self-hosted or deployed in the cloud, Inboxfm Connect connects LLM models (via Claude Desktop, Cursor, Windsurf, or custom AI agents) to over **400+ integrations** safely and deterministically.
+- Embedded connection flows for end users and project-scoped API keys.
+- Tool discovery and execution across the inherited integration catalog.
+- MCP servers that expose integrations and tables to compatible AI clients.
+- Applications that use structured tables, scheduled tasks, and trigger bindings.
+- A dashboard for integrations, connections, MCP servers, and API keys.
 
----
+Third-party integrations may require an account, credentials, or a paid service. Use sandbox accounts and test data for demos.
 
-## 🔥 Key Features
+## Start locally
 
-- **🤖 Native MCP Support**: Every integration automatically acts as an MCP server. Connect your LLM agents in Claude, Cursor, Windsurf, or custom agentic tools to 400+ external services.
-- **🛠️ Type-Safe Integrations Framework**: Write custom actions, triggers, and integrations in TypeScript using `@inboxfm-connect/pieces-framework` with hot-reloading and instant developer feedback.
-- **📊 Headless Data Tables**: Built-in relational storage service (`Table`, `Field`, `Record`, `Cell`) for structured data persistence.
-- **🏢 Enterprise Multi-Tenancy**: Strict tenant isolation (`Platform` → `Project` → `User`) ensuring data security across self-hosted and cloud environments.
-- **🔒 Security by Design**: Built-in SSRF protection (`safeHttp`), role-based access control (RBAC), and customizable enterprise white-labeling.
-- **⚡ High Performance Architecture**: Fastify REST API, TypeORM managed PostgreSQL, and BullMQ Redis job queue for reliable async processing.
-
----
-
-## 🏗️ Monorepo Architecture
-
-```
-├── packages/
-│   ├── core/
-│   │   ├── shared/                # Shared Zod schemas, types, and model definitions
-│   │   ├── piece-types/           # Common type schemas for integrations
-│   │   ├── pieces-framework/      # Framework SDK for building custom integrations
-│   │   ├── pieces-common/         # Shared utilities for pieces (OAuth, polling, HTTP)
-│   │   ├── core-utils/            # Lean framework-agnostic utilities
-│   │   └── core-formula/          # Formula parsing and evaluation engine
-│   ├── server/
-│   │   ├── api/                   # Fastify-based backend REST API server
-│   │   ├── engine/                # Runtime executor for headless pieces and MCP tools
-│   │   ├── sandbox/               # Code sandbox isolation layer
-│   │   └── scheduler/             # Scheduled tasks and cron trigger manager
-│   └── integrations/
-│       └── core/                  # Core integration definitions
-```
-
----
-
-## 🛠️ Quick Start
-
-### 1. Prerequisites
-- **Node.js**: `^18.17.0` or `>=20.0.0`
-- **npm**: `>=9.0.0`
-- **PostgreSQL**: `>=14` (or SQLite for development)
-- **Redis**: `>=6.0`
-
-### 2. Installation & Setup
+Use **Node.js 24** and **Bun 1.3.3** (pinned in `package.json`). Linux, macOS, or WSL2 is recommended for the native dependencies and shell-based test commands. Native dependency builds may require Python and a C/C++ toolchain.
 
 ```bash
-# Clone the repository
 git clone https://github.com/Mihir-Rabari/inboxfm-connect.git
 cd inboxfm-connect
-
-# Install dependencies and setup environment
+git switch dev
 npm start
-
-# Run frontend & backend in development mode
-npm run dev
 ```
 
----
+`npm start` installs dependencies, builds the configured development integrations, and starts the backend and engine. In another terminal, start the web application:
 
-## 🔌 Building Custom Integrations
+```bash
+bun x turbo run serve --filter=@inboxfm-connect/web
+```
 
-Integrations in Inboxfm Connect are standard TypeScript packages created using `@inboxfm-connect/pieces-framework`:
+Open [localhost:4200](http://localhost:4200). The API listens on port 3000. See [the hackathon guide](docs/HACKATHON.md) for environment settings, credentials, sample projects, and troubleshooting. Subsequent backend starts use `npm run dev`.
 
-```typescript
-import { createPiece, createAction, Property } from '@inboxfm-connect/pieces-framework'
+## SDK and API
 
-export const myCustomAction = createAction({
-    name: 'send_message',
-    displayName: 'Send Message',
-    description: 'Sends a notification message',
-    props: {
-        recipient: Property.ShortText({
-            displayName: 'Recipient',
-            required: true,
-        }),
-        message: Property.LongText({
-            displayName: 'Message',
-            required: true,
-        }),
-    },
-    async run(context) {
-        // Implementation logic
-        return { success: true }
-    },
+The SDK source and runnable examples live in [packages/connect-sdk](packages/connect-sdk). Its [README](packages/connect-sdk/README.md) describes authentication, connection sessions, tool discovery, and action execution; the [SDK overview](docs/connect-sdk/overview.mdx) and [reference](docs/connect-sdk/reference.mdx) cover the public contract.
+
+```ts
+import { InboxFM } from '@inboxfm-connect/sdk'
+
+const inboxfm = new InboxFM({
+  baseUrl: 'http://localhost:3000/api',
+  projectId: process.env.INBOXFM_PROJECT_ID,
+  apiKey: process.env.INBOXFM_API_KEY,
 })
 
-export const myPiece = createPiece({
-    displayName: 'My Custom Integration',
-    auth: Property.SecretText({ displayName: 'API Key', required: true }),
-    minimumSupportedRelease: '0.0.1',
-    authors: [],
-    actions: [myCustomAction],
-    triggers: [],
+const tools = await inboxfm.listTools({
+  integration: '@inboxfm-connect/piece-text-helper',
 })
 ```
 
----
+Keep API keys on the server. The examples use development credentials; never commit real credentials or expose them in a browser bundle.
 
-## 📜 License
+## Repository map
 
-Distributed under the **MIT License**. See [`LICENSE`](/LICENSE) for details.
+| Area | Location |
+| --- | --- |
+| REST API, tenant security, persistence | [packages/server/api](packages/server/api) |
+| Headless runtime and engine | [packages/runtime](packages/runtime), [packages/server/engine](packages/server/engine) |
+| Sandbox and server utilities | [packages/server/sandbox](packages/server/sandbox), [packages/server/utils](packages/server/utils) |
+| Thin core libraries and application schemas | [packages/core](packages/core) |
+| Integration framework and catalog | [packages/integrations](packages/integrations) |
+| Dashboard | [packages/web](packages/web) |
+| TypeScript client | [packages/connect-sdk](packages/connect-sdk) |
+| Scheduling | [packages/scheduler](packages/scheduler) |
+| Inherited restricted code | `packages/ee/`, `packages/server/api/src/app/ee/` |
+
+Read [ARCHITECTURE.md](ARCHITECTURE.md) for execution flows, package boundaries, storage, and where to make changes.
+
+## Contribute
+
+Branch from `dev` and open your PR against **`dev`**. `main` receives reviewed promotions from `dev`. Check existing issues and PRs before starting, keep each change focused, and include its issue number.
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), [the hackathon guide](docs/HACKATHON.md), and [open issues](https://github.com/Mihir-Rabari/inboxfm-connect/issues). Follow the [Code of Conduct](.github/CODE_OF_CONDUCT.md). Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
+
+## Checks
+
+```bash
+npm run lint-dev
+npm run test-unit
+npm run test-api
+npm run check-migrations
+npm run check-licenses
+```
+
+CI runs on every PR, pushes to `dev` and `main`, and merge queues. It checks workflow syntax, attribution and Enterprise boundaries, lint, types, builds, SDK packaging, unit/web tests, edition integration tests, PostgreSQL behavior, migrations, and affected integrations. See [docs/CI.md](docs/CI.md) for the exact jobs and local commands.
+
+## License and attribution
+
+Keep the original copyright and license notices. Most application code is covered by the [root license](LICENSE), which explicitly excludes the two Enterprise directories and preserves third-party license terms. Those Enterprise directories are governed by [Activepieces' Enterprise license](packages/ee/LICENSE); tests passing or choosing an edition does not grant additional license rights.
+
+See [LICENSING.md](LICENSING.md) for the current limitations and [UPSTREAM_CREDITS.md](UPSTREAM_CREDITS.md) for acknowledgements.

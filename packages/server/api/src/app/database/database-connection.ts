@@ -3,15 +3,16 @@ import {
     DataSource,
     EntitySchema,
 } from 'typeorm'
+import { AgentEntity } from '../agents/agent.entity'
 import { AIProviderEntity } from '../ai/ai-provider-entity'
 import { AiToolConfigEntity } from '../ai/ai-tool-config-entity'
 import { PlatformAnalyticsReportEntity } from '../analytics/platform-analytics-report.entity'
+import { ApiKeyEntity } from '../api-keys/api-key.entity'
 import { ConnectionEntity } from '../app-connection/app-connection.entity'
 import { UserIdentityEntity } from '../authentication/user-identity/user-identity-entity'
 import { ConnectApiKeyEntity } from '../connect-api-keys/connect-api-key.entity'
 import { ConnectOAuthAppEntity } from '../connect-oauth-apps/connect-oauth-app.entity'
 import { ConnectSessionEntity } from '../connect-sessions/connect-session.entity'
-import { ApiKeyEntity } from '../ee/api-keys/api-key-entity'
 import { AppCredentialEntity } from '../ee/app-credentials/app-credentials.entity'
 import { AppSumoEntity } from '../ee/appsumo/appsumo.entity'
 import { AuditEventEntity } from '../ee/audit-logs/audit-event-entity'
@@ -23,7 +24,6 @@ import { ConcurrencyPoolEntity } from '../ee/platform/concurrency-pool/concurren
 import { PlatformPlanEntity } from '../ee/platform/platform-plan/platform-plan.entity'
 import { ProjectMemberEntity } from '../ee/projects/project-members/project-member.entity'
 import { ProjectPlanEntity } from '../ee/projects/project-plan/project-plan.entity'
-import { ProjectRoleEntity } from '../ee/projects/project-role/project-role.entity'
 import { SecretManagerEntity } from '../ee/secret-managers/secret-manager.entity'
 import { SigningKeyEntity } from '../ee/signing-key/signing-key-entity'
 import { EventDestinationEntity } from '../event-destinations/event-destinations.entity'
@@ -44,6 +44,7 @@ import { PieceTagEntity } from '../pieces/tags/pieces/piece-tag.entity'
 import { TagEntity } from '../pieces/tags/tag-entity'
 import { PlatformEntity } from '../platform/platform.entity'
 import { ProjectEntity } from '../project/project-entity'
+import { ProjectRoleEntity } from '../project/project-role/project-role.entity'
 import { StoreEntryEntity } from '../store-entry/store-entry-entity'
 import { FieldEntity } from '../tables/field/field.entity'
 import { CellEntity } from '../tables/record/cell.entity'
@@ -58,12 +59,13 @@ import { createPostgresDataSource } from './postgres-connection'
 
 const databaseType = system.get(AppSystemProp.DB_TYPE)
 
-function getEntities(): EntitySchema<unknown>[] {
+export function getEntities(): EntitySchema<unknown>[] {
     return [
         ExecutionEntity,
         ToolCallEntity,
         TriggerBindingEntity,
         ScheduledTaskEntity,
+        AgentEntity,
         FileEntity,
         FlagEntity,
         ProjectEntity,
@@ -92,6 +94,7 @@ function getEntities(): EntitySchema<unknown>[] {
         ConnectSessionEntity,
         ConnectApiKeyEntity,
         ConnectOAuthAppEntity,
+        ApiKeyEntity,
         // Enterprise
         ConcurrencyPoolEntity,
         ProjectMemberEntity,
@@ -99,7 +102,6 @@ function getEntities(): EntitySchema<unknown>[] {
         SigningKeyEntity,
         OAuthAppEntity,
         OtpEntity,
-        ApiKeyEntity,
         AuditEventEntity,
         PlatformAnalyticsReportEntity,
         EmbedSubdomainEntity,
