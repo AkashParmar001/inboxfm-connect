@@ -3,6 +3,8 @@ services:
     image: nginx:1.30.5-alpine
     container_name: inboxfm-proxy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - app
     ports:
