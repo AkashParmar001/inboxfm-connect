@@ -26,8 +26,12 @@ async function createExecutionViaApi(ctx: TestContext, prompt: string): Promise<
     return response!.json()
 }
 
-async function saveExecutionRow(ctx: TestContext, prompt: string): Promise<{ id: string }> {
-    const now = new Date().toISOString()
+async function saveExecutionRow(
+    ctx: TestContext,
+    prompt: string,
+    overrides: { status?: ExecutionStatus, created?: string } = {},
+): Promise<{ id: string }> {
+    const now = overrides.created ?? new Date().toISOString()
     const row = {
         id: apId(),
         created: now,
@@ -35,7 +39,7 @@ async function saveExecutionRow(ctx: TestContext, prompt: string): Promise<{ id:
         projectId: ctx.project.id,
         platformId: ctx.platform.id,
         userId: ctx.user.id,
-        status: ExecutionStatus.CREATED,
+        status: overrides.status ?? ExecutionStatus.CREATED,
         prompt,
         metadata: {},
         tokenUsage: null,
@@ -45,6 +49,7 @@ async function saveExecutionRow(ctx: TestContext, prompt: string): Promise<{ id:
     await db.save('execution', row)
     return row
 }
+
 
 async function saveToolCallRow(params: { executionId: string, projectId: string }): Promise<{ id: string }> {
     const now = new Date().toISOString()
@@ -325,6 +330,75 @@ describe('Execution authorization (USER principal, :id routes)', () => {
             const response = await ctxB.get('/v1/executions', { projectId: ctxA.project.id })
 
             expect(response?.statusCode).toBe(StatusCodes.FORBIDDEN)
+        })
+
+        it('paginates executions using cursor and limit (#156)', async () => {
+            const ctx = await createTestContext(app!)
+            await saveExecutionRow(ctx, 'Prompt 1', { created: '2026-01-01T10:00:10.000Z' })
+            await saveExecutionRow(ctx, 'Prompt 2', { created: '2026-01-01T10:00:20.000Z' })
+            await saveExecutionRow(ctx, 'Prompt 3', { created: '2026-01-01T10:00:30.000Z' })
+
+            // Page 1: newest 2 (Prompt 3 and Prompt 2)
+            const page1Res = await ctx.get('/v1/executions', { projectId: ctx.project.id, limit: 2 })
+            expect(page1Res?.statusCode).toBe(StatusCodes.OK)
+            const page1 = page1Res!.json()
+            expect(page1.data).toHaveLength(2)
+            expect(page1.data[0].prompt).toBe('Prompt 3')
+            expect(page1.data[1].prompt).toBe('Prompt 2')
+            expect(page1.next).toBeTruthy()
+            expect(page1.previous).toBeNull()
+
+            // Page 2: remaining 1 (Prompt 1) using next cursor
+            const page2Res = await ctx.get('/v1/executions', { projectId: ctx.project.id, limit: 2, cursor: page1.next })
+            expect(page2Res?.statusCode).toBe(StatusCodes.OK)
+            const page2 = page2Res!.json()
+            expect(page2.data).toHaveLength(1)
+            expect(page2.data[0].prompt).toBe('Prompt 1')
+            expect(page2.next).toBeNull()
+            expect(page2.previous).toBeTruthy()
+        })
+
+        it('combines status filter with cursor pagination (#156)', async () => {
+            const ctx = await createTestContext(app!)
+            await saveExecutionRow(ctx, 'Completed 1', {
+                created: '2026-01-01T11:00:10.000Z',
+                status: ExecutionStatus.COMPLETED,
+            })
+            await saveExecutionRow(ctx, 'Failed 1', {
+                created: '2026-01-01T11:00:20.000Z',
+                status: ExecutionStatus.FAILED,
+            })
+            await saveExecutionRow(ctx, 'Completed 2', {
+                created: '2026-01-01T11:00:30.000Z',
+                status: ExecutionStatus.COMPLETED,
+            })
+
+            // Fetch COMPLETED with limit 1
+            const page1Res = await ctx.get('/v1/executions', {
+                projectId: ctx.project.id,
+                status: ExecutionStatus.COMPLETED,
+                limit: 1,
+            })
+            expect(page1Res?.statusCode).toBe(StatusCodes.OK)
+            const page1 = page1Res!.json()
+            expect(page1.data).toHaveLength(1)
+            expect(page1.data[0].prompt).toBe('Completed 2')
+            expect(page1.data[0].status).toBe(ExecutionStatus.COMPLETED)
+            expect(page1.next).toBeTruthy()
+
+            // Fetch next page of COMPLETED
+            const page2Res = await ctx.get('/v1/executions', {
+                projectId: ctx.project.id,
+                status: ExecutionStatus.COMPLETED,
+                limit: 1,
+                cursor: page1.next,
+            })
+            expect(page2Res?.statusCode).toBe(StatusCodes.OK)
+            const page2 = page2Res!.json()
+            expect(page2.data).toHaveLength(1)
+            expect(page2.data[0].prompt).toBe('Completed 1')
+            expect(page2.data[0].status).toBe(ExecutionStatus.COMPLETED)
+            expect(page2.next).toBeNull()
         })
     })
 })
