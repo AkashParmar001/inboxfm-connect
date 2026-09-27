@@ -11,11 +11,13 @@ The primary [CI workflow](../.github/workflows/ci.yml) runs on every PR without 
 | Checks (unit) | Engine, shared, thin execution library, SDK, web, and API unit tests | `node tools/ci/run-check.mjs unit` |
 | Checks (ce/ee/cloud) | An independent API integration job for each edition | `node tools/ci/run-check.mjs ce` (or `ee`/`cloud`) |
 | Checks (migrations) | Apply migrations, detect schema drift, inspect new rollback metadata | `node tools/ci/run-check.mjs migrations` |
-| Checks (integrations) | Lint/build affected integrations; expand to all when shared code/dependencies change | `node tools/ci/run-check.mjs integrations` |
+| Checks (integrations) | Lint changed integration packages; build all integrations when thin shared libraries, framework/common, compiler configuration, or dependencies change | `node tools/ci/run-check.mjs integrations` |
 | tool-search (postgres) | Real PostgreSQL+pgvector driver behavior and database-only tests | Requires a PostgreSQL service with pgvector |
 | main | Aggregate gate; fails when any required job fails or is cancelled | Inspect the jobs above |
 
 Every suite runs with Node 24 and Bun 1.3.3. Installs use `--frozen-lockfile`. Action versions in the primary workflow and setup action are pinned to commits. Only the Bun download cache is shared; built workspace output is not reused across concurrent suites.
+
+Integration formatting checks cover changed packages. A change to the root lint/Prettier configuration expands lint to every integration. Root script changes and the thick application-level shared package do not expand integration builds; integrations depend on the thin libraries and framework. Existing untouched integration formatting debt needs its own cleanup; it is not rewritten during a CI or documentation change.
 
 The jobs do not require publishing, cloud deployment, or paid cache credentials. Repository content permission is read-only, checkout credentials are not persisted, and untrusted PR code does not run through `pull_request_target` with deployment secrets.
 
