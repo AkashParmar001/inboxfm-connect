@@ -1,4 +1,5 @@
 import { HeadlessRuntime } from '@inboxfm-connect/runtime'
+import { apLogger } from '@inboxfm-connect/server-utils'
 import { McpToolResult } from '@inboxfm-connect/shared'
 import { FastifyBaseLogger } from 'fastify'
 import { ArrayContains } from 'typeorm'
@@ -7,8 +8,11 @@ import { system } from '../../helper/system/system'
 import { AppSystemProp } from '../../helper/system/system-props'
 import { projectService } from '../../project/project-service'
 
+const runtimeLog = apLogger.create({ bindings: {} })
+
 const runtime = new HeadlessRuntime({
     basePath: process.cwd(),
+    log: runtimeLog,
     getSettings: () => ({
         EXECUTION_MODE: system.get(AppSystemProp.EXECUTION_MODE) ?? 'UNSANDBOXED',
         SANDBOX_MEMORY_LIMIT: system.get(AppSystemProp.SANDBOX_MEMORY_LIMIT) ?? '1048576',
@@ -37,10 +41,10 @@ const runtime = new HeadlessRuntime({
         if (!projectId) {
             throw new Error(`Connection has no projectIds: ${connection.id}`)
         }
-        return appConnectionService({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, trace: () => {}, child: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, trace: () => {} }) } as unknown as FastifyBaseLogger).decryptAndRefreshConnection(
+        return appConnectionService(runtimeLog).decryptAndRefreshConnection(
             connection,
             projectId,
-            { info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, trace: () => {}, child: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {}, trace: () => {} }) } as unknown as FastifyBaseLogger,
+            runtimeLog,
         )
     },
 })

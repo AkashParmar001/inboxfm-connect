@@ -47,7 +47,9 @@ jobs:
         run: docker run --rm -v "$GITHUB_WORKSPACE:/repo" -w /repo rhysd/actionlint:1.7.12 -color -shellcheck=
       - uses: ./.github/actions/setup-ci
       - name: Check licensing boundaries and notices
-        run: node tools/ci/check-license-boundaries.mjs
+        run: |
+          node --test tools/ci/policy.test.mjs
+          node tools/ci/check-license-boundaries.mjs
       - name: Verify benchmark regression gate
         run: |
           npm run test-bench-gate
@@ -80,8 +82,13 @@ jobs:
           name: ${{ matrix.suite }}-diagnostics
           path: |
             ci.log
-            packages/**/coverage
-            packages/**/junit.xml
+            packages/core/shared/coverage
+            packages/core/execution/coverage
+            packages/engine/coverage
+            packages/connect-sdk/coverage
+            packages/web/coverage
+            packages/server/api/coverage
+            packages/server/api/junit.xml
           retention-days: 7
           if-no-files-found: warn
 

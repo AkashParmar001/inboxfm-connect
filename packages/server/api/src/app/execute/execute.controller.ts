@@ -18,6 +18,7 @@ const runtimeLog = apLogger.create({ bindings: {} })
 
 const runtime = new HeadlessRuntime({
     basePath: process.cwd(),
+    log: runtimeLog,
     getSettings: () => ({
         EXECUTION_MODE: system.get(AppSystemProp.EXECUTION_MODE) ?? 'UNSANDBOXED',
         SANDBOX_MEMORY_LIMIT: system.get(AppSystemProp.SANDBOX_MEMORY_LIMIT) ?? '1048576',
