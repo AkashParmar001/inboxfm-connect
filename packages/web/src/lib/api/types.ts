@@ -546,6 +546,7 @@ export interface PlatformUsageInfo {
 }
 
 export interface PlatformBillingInformation {
+  stripeBillingEnabled: boolean
   plan: PlatformPlanInfo
   usage: PlatformUsageInfo
   nextBillingAmount?: number

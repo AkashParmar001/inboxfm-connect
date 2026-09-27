@@ -1,11 +1,14 @@
 import { ActivepiecesError, assertNotNullOrUndefined, ErrorCode, isNil } from '@inboxfm-connect/core-utils'
-import { CreateAICreditCheckoutSessionParamsSchema, CreateCheckoutSessionParamsSchema, PlatformBillingInformation, PrincipalType, STANDARD_CLOUD_PLAN, UpdateActiveFlowsAddonParamsSchema, UpdateAICreditsAutoTopUpParamsSchema } from '@inboxfm-connect/shared'
+import { ApEdition, CreateAICreditCheckoutSessionParamsSchema, CreateCheckoutSessionParamsSchema, PlatformBillingInformation, PrincipalType, STANDARD_CLOUD_PLAN, UpdateActiveFlowsAddonParamsSchema, UpdateAICreditsAutoTopUpParamsSchema } from '@inboxfm-connect/shared'
 import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
+
 import { securityAccess } from '../../../core/security/authorization/fastify-security'
+import { system } from '../../../helper/system/system'
+import { AppSystemProp } from '../../../helper/system/system-props'
 import { platformService } from '../../../platform/platform.service'
-import { userService } from '../../../user/user-service'
+import { billingCheckoutService } from './billing-checkout.service'
 import { platformAiCreditsService } from './platform-ai-credits.service'
 import { platformPlanService } from './platform-plan.service'
 import { stripeHelper } from './stripe-helper'
@@ -25,6 +28,7 @@ export const platformPlanController: FastifyPluginAsyncZod = async (fastify) => 
         const nextBillingAmount = await platformPlanService(request.log).getNextBillingAmount({ subscriptionId: platformPlan.stripeSubscriptionId })
 
         const response: PlatformBillingInformation = {
+            stripeBillingEnabled: system.getEdition() === ApEdition.CLOUD && Boolean(system.get(AppSystemProp.STRIPE_SECRET_KEY)),
             plan: platformPlan,
             usage,
             nextBillingAmount,
@@ -62,49 +66,11 @@ export const platformPlanController: FastifyPluginAsyncZod = async (fastify) => 
     })
 
     fastify.post('/create-checkout-session', CreateCheckoutSessionRequest, async (request) => {
-        const stripe = stripeHelper(request.log).getStripe()
-        if (isNil(stripe)) {
-            throw new ActivepiecesError({
-                code: ErrorCode.VALIDATION,
-                params: {
-                    message: 'Stripe billing is not configured on this instance',
-                },
-            })
-        }
-
-        const platformPlan = await platformPlanService(request.log).getOrCreateForPlatform(request.principal.platform.id)
-
-        let customerId = platformPlan.stripeCustomerId
-        if (isNil(customerId)) {
-            const platform = await platformService(request.log).getOneOrThrow(request.principal.platform.id)
-            const owner = await userService(request.log).getMetaInformation({ id: platform.ownerId })
-            customerId = await stripeHelper(request.log).createCustomer(owner, platform.id)
-            await platformPlanService(request.log).update({
-                platformId: platform.id,
-                stripeCustomerId: customerId,
-            })
-        }
-
-        const { newActiveFlowsLimit } = request.body
-
-        const baseActiveFlowsLimit = STANDARD_CLOUD_PLAN.activeFlowsLimit ?? 0
-        const extraActiveFlows = Math.max(0, newActiveFlowsLimit - baseActiveFlowsLimit)
-
-        if (extraActiveFlows <= 0) {
-            throw new ActivepiecesError({
-                code: ErrorCode.VALIDATION,
-                params: {
-                    message: `Requested active flows limit (${newActiveFlowsLimit}) must exceed base plan limit (${baseActiveFlowsLimit}) to purchase additional flows.`,
-                },
-            })
-        }
-
-        const stripeCheckoutUrl = await stripeHelper(request.log).createNewSubscriptionCheckoutSession({
-            platformId: platformPlan.platformId,
-            customerId,
-            extraActiveFlows,
+        return billingCheckoutService.create({
+            platformId: request.principal.platform.id,
+            newActiveFlowsLimit: request.body.newActiveFlowsLimit,
+            log: request.log,
         })
-        return { stripeCheckoutUrl, url: stripeCheckoutUrl }
     })
 
     fastify.post('/update-active-flows-addon', UpdateActiveFlowsAddonRequest, async (request) => {

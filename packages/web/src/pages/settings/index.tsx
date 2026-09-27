@@ -86,7 +86,7 @@ export default function SettingsPage() {
                   Incomplete
                 </Badge>
               )}
-              {(!billingInfo?.plan?.stripeSubscriptionStatus || billingInfo?.plan?.stripeSubscriptionStatus === 'canceled') && (
+              {billingInfo && (!billingInfo.plan?.stripeSubscriptionStatus || billingInfo.plan?.stripeSubscriptionStatus === 'canceled') && (
                 <Badge variant="secondary">
                   Community Plan
                 </Badge>
@@ -110,7 +110,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-lg border border-border p-3 space-y-1">
                 <span className="text-[11px] text-muted-foreground uppercase font-semibold">Active Plan</span>
-                <p className="text-sm font-bold capitalize text-foreground">{billingInfo?.plan?.plan || 'Community Edition'}</p>
+                <p className="text-sm font-bold capitalize text-foreground">{billingInfo?.plan?.plan || 'Unavailable'}</p>
               </div>
               <div className="rounded-lg border border-border p-3 space-y-1">
                 <span className="text-[11px] text-muted-foreground uppercase font-semibold">Active Flows Limit</span>
@@ -132,7 +132,11 @@ export default function SettingsPage() {
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Loading billing status...</span>
                 </div>
-              ) : billingInfo?.plan?.stripeSubscriptionId ? (
+              ) : billingQuery.isError ? (
+                <div role="alert" className="text-xs text-destructive">Billing status could not be loaded. Reload to try again.</div>
+              ) : !billingInfo?.stripeBillingEnabled ? (
+                <p className="text-xs text-muted-foreground">Stripe billing is unavailable on this instance.</p>
+              ) : billingInfo.plan?.stripeSubscriptionId ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -143,6 +147,8 @@ export default function SettingsPage() {
                   {portalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
                   <span>Manage in Stripe</span>
                 </Button>
+              ) : billingInfo.plan?.plan === 'enterprise' ? (
+                <p className="text-xs text-muted-foreground">Enterprise billing is managed by your platform administrator.</p>
               ) : (
                 <Button
                   size="sm"

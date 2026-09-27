@@ -1,4 +1,4 @@
-import { assertNotNullOrUndefined, isNil } from '@inboxfm-connect/core-utils'
+import { ActivepiecesError, assertNotNullOrUndefined, ErrorCode, isNil } from '@inboxfm-connect/core-utils'
 import { apDayjs } from '@inboxfm-connect/server-utils'
 import { ApEdition, UserWithMetaInformation } from '@inboxfm-connect/shared'
 import { FastifyBaseLogger } from 'fastify'
@@ -31,6 +31,8 @@ export const stripeHelper = (log: FastifyBaseLogger) => ({
                 platformId,
                 customer_key: `ps_cus_key_${user.email}`,
             },
+        }, {
+            idempotencyKey: `platform-customer:${platformId}`,
         })
         return newCustomer.id
     },
@@ -169,6 +171,23 @@ export const stripeHelper = (log: FastifyBaseLogger) => ({
         assertNotNullOrUndefined(stripe, 'Stripe is not configured')
 
         const { customerId, platformId, extraActiveFlows } = params
+
+        for await (const subscription of stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 })) {
+            if (subscription.status !== 'canceled' && subscription.status !== 'incomplete_expired') {
+                throw new ActivepiecesError({
+                    code: ErrorCode.VALIDATION,
+                    params: { message: 'Manage the existing subscription in the billing portal' },
+                })
+            }
+        }
+
+        for await (const checkout of stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 })) {
+            if (checkout.mode !== 'subscription') continue
+            const items = await stripe.checkout.sessions.listLineItems(checkout.id, { limit: 100 })
+            const matches = items.data.length === 1 && items.data[0]?.price?.id === ACTIVE_FLOW_PRICE_ID && items.data[0]?.quantity === extraActiveFlows
+            if (matches && !isNil(checkout.url)) return checkout.url
+            await stripe.checkout.sessions.expire(checkout.id)
+        }
 
         const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
 

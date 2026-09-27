@@ -59,6 +59,38 @@ describe('Settings page', () => {
     })
   })
 
+  it('does not offer checkout when billing state fails to load', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ status: 500, body: { message: 'Unavailable' } }) },
+    ])
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Billing status could not be loaded') === true)
+    expect(container.textContent).not.toContain('Upgrade to Paid Tier')
+    expect(container.textContent).not.toContain('Community Plan')
+  })
+
+  it.each(['ce', 'ee'])('does not offer Stripe checkout on %s', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: { stripeBillingEnabled: false, plan: { plan: 'self-hosted' }, usage: {} } }) },
+    ])
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Stripe billing is unavailable') === true)
+    expect(container.textContent).not.toContain('Upgrade to Paid Tier')
+    expect(container.textContent).not.toContain('Manage in Stripe')
+  })
+
+  it('does not offer a self-service upgrade for Cloud Enterprise', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: { stripeBillingEnabled: true, plan: { plan: 'enterprise' }, usage: {} } }) },
+    ])
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Enterprise billing is managed') === true)
+    expect(container.textContent).not.toContain('Upgrade to Paid Tier')
+  })
+
   it('renders settings page with project information, appearance, and community billing details', async () => {
     stubApi([
       { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
@@ -66,6 +98,7 @@ describe('Settings page', () => {
         match: BILLING_INFO_MATCH,
         respond: () => ({
           body: {
+            stripeBillingEnabled: true,
             plan: {
               plan: 'community',
               activeFlowsLimit: null,
@@ -97,6 +130,7 @@ describe('Settings page', () => {
         match: BILLING_INFO_MATCH,
         respond: () => ({
           body: {
+            stripeBillingEnabled: true,
             plan: {
               plan: 'standard',
               stripeSubscriptionId: 'sub_12345',
@@ -145,6 +179,7 @@ describe('Settings page', () => {
         match: BILLING_INFO_MATCH,
         respond: () => ({
           body: {
+            stripeBillingEnabled: true,
             plan: {
               plan: 'standard',
               stripeSubscriptionId: 'sub_failed',
@@ -173,6 +208,7 @@ describe('Settings page', () => {
         match: BILLING_INFO_MATCH,
         respond: () => ({
           body: {
+            stripeBillingEnabled: true,
             plan: {
               plan: 'community',
             },
@@ -218,6 +254,7 @@ describe('Settings page', () => {
         match: BILLING_INFO_MATCH,
         respond: () => ({
           body: {
+            stripeBillingEnabled: true,
             plan: {
               plan: 'standard',
               stripeSubscriptionId: 'sub_trial',
@@ -240,6 +277,7 @@ describe('Settings page', () => {
         match: BILLING_INFO_MATCH,
         respond: () => ({
           body: {
+            stripeBillingEnabled: true,
             plan: {
               plan: 'standard',
               stripeSubscriptionId: 'sub_inc',

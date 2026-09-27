@@ -1,4 +1,3 @@
-import { apiClient } from '@/lib/api/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth/auth-context'
