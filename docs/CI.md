@@ -37,6 +37,8 @@ node tools/ci/run-check.mjs migrations
 
 API test configuration provides PGlite and memory Redis. Redis-memory-server is pinned to Redis 7.4.0 in CI so its install does not pull Redis 8's additional Rust-based modules. On Linux/macOS/WSL2, set `REDISMS_VERSION=7.4.0` before installation to reproduce the toolchain.
 
+The migration checker applies migrations to a fresh temporary PGlite database, checks the resulting schema in a second CLI process, and removes its temporary data afterward. It does not use the developer's normal application database or ambient PostgreSQL credentials.
+
 ## Branch policy
 
 Contributions target `dev`. A PR into `main` must originate from this repository's `dev` branch. Promote using a reviewed merge PR so commit history and attribution remain available.
