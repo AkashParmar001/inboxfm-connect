@@ -28,6 +28,7 @@ import {
   PieceSummary,
   PopulatedMcpServer,
   ScheduledTask,
+  SeekPage,
   TriggerBinding,
   UpdateMcpServerRequest,
   UpdateScheduledTaskRequest,
@@ -37,7 +38,7 @@ import {
 export function useIntegrations(params?: IntegrationsListParams) {
   return useQuery({
     queryKey: ['integrations', params ?? {}],
-    queryFn: () => apiClient.get<PieceSummary[]>('/integrations', { params }),
+    queryFn: () => apiClient.get<SeekPage<PieceSummary>>('/integrations', { params }),
     placeholderData: keepPreviousData,
   })
 }
