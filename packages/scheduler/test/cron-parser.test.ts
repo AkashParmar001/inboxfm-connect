@@ -1,71 +1,88 @@
 import { describe, expect, it } from 'vitest'
-import {
-    computeNextTick,
-    parseCronExpression,
-    validateCronExpression,
-} from '../src/cron-parser'
+import { cronParser } from '../src/cron-parser'
 
 describe('Cron Parser & Validator', () => {
+    it('accepts zero-padded fields and ranges', () => {
+        expect(cronParser.validateCronExpression('00 09 * * *')).toBe(true)
+        expect(cronParser.validateCronExpression('00 08-09 * * *')).toBe(true)
+        expect(cronParser.validateCronExpression('00 9x * * *')).toBe(false)
+    })
+
+    it('retains local midnight after spring-forward when advancing unmatched days', () => {
+        expect(cronParser.computeNextTick({
+            cronExpression: '0 0 9 3 *',
+            fromDate: new Date('2026-03-07T20:01:00.000Z'),
+            timezone: 'America/New_York',
+        }).toISOString()).toBe('2026-03-09T04:00:00.000Z')
+    })
+
+    it('retains second precision at midnight after a local day boundary', () => {
+        expect(cronParser.computeNextTick({
+            cronExpression: '0 0 0 9 3 *',
+            fromDate: new Date('2026-03-07T20:01:04.000Z'),
+            timezone: 'America/New_York',
+        }).toISOString()).toBe('2026-03-09T04:00:00.000Z')
+    })
     describe('validateCronExpression', () => {
         it('accepts standard 5-field cron expressions', () => {
-            expect(validateCronExpression('* * * * *')).toBe(true)
-            expect(validateCronExpression('0 8 * * *')).toBe(true)
-            expect(validateCronExpression('*/15 * * * *')).toBe(true)
-            expect(validateCronExpression('0 9-17 * * 1-5')).toBe(true)
-            expect(validateCronExpression('0 0 1,15 * *')).toBe(true)
-            expect(validateCronExpression('0 0 1 JAN *')).toBe(true)
-            expect(validateCronExpression('0 0 * * SUN')).toBe(true)
+            expect(cronParser.validateCronExpression('* * * * *')).toBe(true)
+            expect(cronParser.validateCronExpression('0 8 * * *')).toBe(true)
+            expect(cronParser.validateCronExpression('*/15 * * * *')).toBe(true)
+            expect(cronParser.validateCronExpression('0 9-17 * * 1-5')).toBe(true)
+            expect(cronParser.validateCronExpression('0 0 1,15 * *')).toBe(true)
+            expect(cronParser.validateCronExpression('0 0 1 JAN *')).toBe(true)
+            expect(cronParser.validateCronExpression('0 0 * * SUN')).toBe(true)
         })
 
         it('accepts 6-field cron expressions with seconds', () => {
-            expect(validateCronExpression('*/30 * * * * *')).toBe(true)
-            expect(validateCronExpression('0 0 12 * * *')).toBe(true)
-            expect(validateCronExpression('15 0 9-17 * * 1-5')).toBe(true)
+            expect(cronParser.validateCronExpression('*/30 * * * * *')).toBe(true)
+            expect(cronParser.validateCronExpression('0 0 12 * * *')).toBe(true)
+            expect(cronParser.validateCronExpression('15 0 9-17 * * 1-5')).toBe(true)
         })
 
         it('rejects expressions with incorrect field counts', () => {
-            expect(validateCronExpression('')).toBe(false)
-            expect(validateCronExpression('* * * *')).toBe(false) // 4 fields
-            expect(validateCronExpression('* * * * * * *')).toBe(false) // 7 fields
+            expect(cronParser.validateCronExpression('')).toBe(false)
+            expect(cronParser.validateCronExpression('* * * *')).toBe(false) // 4 fields
+            expect(cronParser.validateCronExpression('* * * * * * *')).toBe(false) // 7 fields
         })
 
         it('rejects out-of-bounds field values', () => {
-            expect(validateCronExpression('60 * * * *')).toBe(false) // min > 59
-            expect(validateCronExpression('* 24 * * *')).toBe(false) // hour > 23
-            expect(validateCronExpression('* * 32 * *')).toBe(false) // dom > 31
-            expect(validateCronExpression('* * 0 * *')).toBe(false) // dom < 1
-            expect(validateCronExpression('* * * 13 *')).toBe(false) // month > 12
-            expect(validateCronExpression('* * * 0 *')).toBe(false) // month < 1
-            expect(validateCronExpression('* * * * 8')).toBe(false) // dow > 7
+            expect(cronParser.validateCronExpression('60 * * * *')).toBe(false) // min > 59
+            expect(cronParser.validateCronExpression('* 24 * * *')).toBe(false) // hour > 23
+            expect(cronParser.validateCronExpression('* * 32 * *')).toBe(false) // dom > 31
+            expect(cronParser.validateCronExpression('* * 0 * *')).toBe(false) // dom < 1
+            expect(cronParser.validateCronExpression('* * * 13 *')).toBe(false) // month > 12
+            expect(cronParser.validateCronExpression('* * * 0 *')).toBe(false) // month < 1
+            expect(cronParser.validateCronExpression('* * * * 8')).toBe(false) // dow > 7
         })
 
         it('rejects inverted ranges or invalid step values', () => {
-            expect(validateCronExpression('10-5 * * * *')).toBe(false)
-            expect(validateCronExpression('*/0 * * * *')).toBe(false)
-            expect(validateCronExpression('*/-1 * * * *')).toBe(false)
-            expect(validateCronExpression('*/abc * * * *')).toBe(false)
+            expect(cronParser.validateCronExpression('10-5 * * * *')).toBe(false)
+            expect(cronParser.validateCronExpression('*/0 * * * *')).toBe(false)
+            expect(cronParser.validateCronExpression('*/-1 * * * *')).toBe(false)
+            expect(cronParser.validateCronExpression('*/abc * * * *')).toBe(false)
         })
     })
 
     describe('parseCronExpression', () => {
         it('correctly maps month and day names', () => {
-            const parsed = parseCronExpression('0 0 1 JAN MON')
+            const parsed = cronParser.parseCronExpression('0 0 1 JAN MON')
             expect(parsed.months.values.has(1)).toBe(true)
             expect(parsed.daysOfWeek.values.has(1)).toBe(true)
         })
 
         it('maps day 7 and 0 both to Sunday', () => {
-            const parsed7 = parseCronExpression('0 0 * * 7')
+            const parsed7 = cronParser.parseCronExpression('0 0 * * 7')
             expect(parsed7.daysOfWeek.values.has(0)).toBe(true)
             expect(parsed7.daysOfWeek.values.has(7)).toBe(true)
 
-            const parsed0 = parseCronExpression('0 0 * * 0')
+            const parsed0 = cronParser.parseCronExpression('0 0 * * 0')
             expect(parsed0.daysOfWeek.values.has(0)).toBe(true)
             expect(parsed0.daysOfWeek.values.has(7)).toBe(true)
         })
 
         it('parses step intervals and lists accurately', () => {
-            const parsed = parseCronExpression('*/20 1,5,10 * * *')
+            const parsed = cronParser.parseCronExpression('*/20 1,5,10 * * *')
             expect(Array.from(parsed.minutes.values).sort((a, b) => a - b)).toEqual([0, 20, 40])
             expect(Array.from(parsed.hours.values).sort((a, b) => a - b)).toEqual([1, 5, 10])
         })
@@ -74,26 +91,26 @@ describe('Cron Parser & Validator', () => {
     describe('computeNextTick', () => {
         it('computes next minute tick strictly after fromDate', () => {
             const from = new Date('2026-06-01T12:00:30.000Z')
-            const next = computeNextTick('* * * * *', { fromDate: from, timezone: 'UTC' })
+            const next = cronParser.computeNextTick({ cronExpression: '* * * * *',  fromDate: from, timezone: 'UTC' })
             expect(next.toISOString()).toBe('2026-06-01T12:01:00.000Z')
         })
 
         it('computes step interval ticks accurately', () => {
             const from = new Date('2026-06-01T12:04:30.000Z')
-            const next = computeNextTick('*/15 * * * *', { fromDate: from, timezone: 'UTC' })
+            const next = cronParser.computeNextTick({ cronExpression: '*/15 * * * *',  fromDate: from, timezone: 'UTC' })
             expect(next.toISOString()).toBe('2026-06-01T12:15:00.000Z')
         })
 
         it('computes daily midnight ticks across UTC days', () => {
             const from = new Date('2026-06-01T12:00:00.000Z')
-            const next = computeNextTick('0 0 * * *', { fromDate: from, timezone: 'UTC' })
+            const next = cronParser.computeNextTick({ cronExpression: '0 0 * * *',  fromDate: from, timezone: 'UTC' })
             expect(next.toISOString()).toBe('2026-06-02T00:00:00.000Z')
         })
 
         it('computes next tick in specific timezone (Asia/Tokyo)', () => {
             // 9:00 AM JST is 00:00:00 UTC
             const from = new Date('2026-06-01T00:30:00.000Z')
-            const next = computeNextTick('0 9 * * *', { fromDate: from, timezone: 'Asia/Tokyo' })
+            const next = cronParser.computeNextTick({ cronExpression: '0 9 * * *',  fromDate: from, timezone: 'Asia/Tokyo' })
             expect(next.toISOString()).toBe('2026-06-02T00:00:00.000Z')
         })
 
@@ -103,7 +120,7 @@ describe('Cron Parser & Validator', () => {
                 // 02:30:00 local clock does NOT exist on March 8.
                 // The next tick must advance to March 9, 2026 at 02:30:00 EDT (06:30:00 UTC).
                 const from = new Date('2026-03-08T00:00:00.000Z')
-                const next = computeNextTick('30 2 * * *', {
+                const next = cronParser.computeNextTick({ cronExpression: '30 2 * * *',
                     fromDate: from,
                     timezone: 'America/New_York',
                 })
@@ -116,21 +133,21 @@ describe('Cron Parser & Validator', () => {
                 // 1st: 05:30:00 UTC (EDT, UTC-4)
                 // 2nd: 06:30:00 UTC (EST, UTC-5)
                 const fromBeforeFirst = new Date('2026-11-01T04:00:00.000Z')
-                const firstTick = computeNextTick('30 1 * * *', {
+                const firstTick = cronParser.computeNextTick({ cronExpression: '30 1 * * *',
                     fromDate: fromBeforeFirst,
                     timezone: 'America/New_York',
                 })
                 expect(firstTick.toISOString()).toBe('2026-11-01T05:30:00.000Z')
 
                 // Next tick after first occurrence matches the second occurrence
-                const secondTick = computeNextTick('30 1 * * *', {
+                const secondTick = cronParser.computeNextTick({ cronExpression: '30 1 * * *',
                     fromDate: firstTick,
                     timezone: 'America/New_York',
                 })
                 expect(secondTick.toISOString()).toBe('2026-11-01T06:30:00.000Z')
 
                 // Next tick after second occurrence advances to Nov 2
-                const thirdTick = computeNextTick('30 1 * * *', {
+                const thirdTick = cronParser.computeNextTick({ cronExpression: '30 1 * * *',
                     fromDate: secondTick,
                     timezone: 'America/New_York',
                 })
@@ -142,14 +159,14 @@ describe('Cron Parser & Validator', () => {
             it('advances past shorter months to 31st of matching month', () => {
                 // Starting on April 1, 2026: April has 30 days, so 31st occurs on May 31.
                 const from = new Date('2026-04-01T00:00:00.000Z')
-                const next = computeNextTick('0 0 31 * *', { fromDate: from, timezone: 'UTC' })
+                const next = cronParser.computeNextTick({ cronExpression: '0 0 31 * *',  fromDate: from, timezone: 'UTC' })
                 expect(next.toISOString()).toBe('2026-05-31T00:00:00.000Z')
             })
 
             it('advances to next leap year for February 29 schedule', () => {
                 // 2026 is not a leap year. Next leap year is 2028.
                 const from = new Date('2026-01-01T00:00:00.000Z')
-                const next = computeNextTick('0 0 29 2 *', { fromDate: from, timezone: 'UTC' })
+                const next = cronParser.computeNextTick({ cronExpression: '0 0 29 2 *',  fromDate: from, timezone: 'UTC' })
                 expect(next.toISOString()).toBe('2028-02-29T00:00:00.000Z')
             })
         })

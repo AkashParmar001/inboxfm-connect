@@ -25,13 +25,13 @@ const DAY_NAMES: Record<string, number> = {
     sat: 6,
 }
 
-function parseSingleValue(valStr: string, min: number, max: number, names?: Record<string, number>): number {
+function parseSingleValue({ valStr, min, max, names }: ParseValueParams): number {
     const lower = valStr.toLowerCase()
     if (names && names[lower] !== undefined) {
         return names[lower]
     }
     const num = parseInt(valStr, 10)
-    if (isNaN(num) || String(num) !== valStr.trim()) {
+    if (!/^\d+$/.test(valStr) || !Number.isFinite(num)) {
         throw new Error(`Invalid value "${valStr}", expected number between ${min} and ${max}`)
     }
     if (num < min || num > max) {
@@ -40,13 +40,7 @@ function parseSingleValue(valStr: string, min: number, max: number, names?: Reco
     return num
 }
 
-function parseField(
-    rawField: string,
-    min: number,
-    max: number,
-    names?: Record<string, number>,
-    isDayOfWeek = false,
-): ParsedCronField {
+function parseField({ rawField, min, max, names, isDayOfWeek = false }: ParseFieldParams): ParsedCronField {
     const field = rawField.trim()
     if (field === '') {
         throw new Error('Empty cron field')
@@ -89,8 +83,8 @@ function parseField(
                 end = max
             }
             else {
-                start = parseSingleValue(rangeStartRaw, min, max, names)
-                end = rangeEndRaw !== undefined ? parseSingleValue(rangeEndRaw, min, max, names) : max
+                start = parseSingleValue({ valStr: rangeStartRaw, min, max, names })
+                end = rangeEndRaw !== undefined ? parseSingleValue({ valStr: rangeEndRaw, min, max, names }) : max
             }
 
             if (start > end) {
@@ -107,8 +101,8 @@ function parseField(
         // Check for range: e.g. 1-5 or MON-FRI
         const rangeMatch = part.match(/^([^-]+)-([^-]+)$/)
         if (rangeMatch) {
-            const start = parseSingleValue(rangeMatch[1], min, max, names)
-            const end = parseSingleValue(rangeMatch[2], min, max, names)
+            const start = parseSingleValue({ valStr: rangeMatch[1], min, max, names })
+            const end = parseSingleValue({ valStr: rangeMatch[2], min, max, names })
             if (start > end) {
                 throw new Error(`Invalid range "${rangeMatch[1]}-${rangeMatch[2]}" in cron field: "${field}"`)
             }
@@ -130,7 +124,7 @@ function parseField(
             continue
         }
 
-        const val = parseSingleValue(part, min, max, names)
+        const val = parseSingleValue({ valStr: part, min, max, names })
         values.add(isDayOfWeek && val === 7 ? 0 : val)
     }
 
@@ -146,7 +140,7 @@ function parseField(
     return { values, wildcard: false }
 }
 
-export function parseCronExpression(expression: string): ParsedCronSchedule {
+function parseCronExpression(expression: string): ParsedCronSchedule {
     if (typeof expression !== 'string') {
         throw new TypeError('Cron expression must be a string')
     }
@@ -167,18 +161,18 @@ export function parseCronExpression(expression: string): ParsedCronSchedule {
     const dowStr = hasSeconds ? fields[5] : fields[4]
 
     return {
-        seconds: parseField(secStr, 0, 59),
-        minutes: parseField(minStr, 0, 59),
-        hours: parseField(hourStr, 0, 23),
-        daysOfMonth: parseField(domStr, 1, 31),
-        months: parseField(monStr, 1, 12, MONTH_NAMES),
-        daysOfWeek: parseField(dowStr, 0, 7, DAY_NAMES, true),
+        seconds: parseField({ rawField: secStr, min: 0, max: 59 }),
+        minutes: parseField({ rawField: minStr, min: 0, max: 59 }),
+        hours: parseField({ rawField: hourStr, min: 0, max: 23 }),
+        daysOfMonth: parseField({ rawField: domStr, min: 1, max: 31 }),
+        months: parseField({ rawField: monStr, min: 1, max: 12, names: MONTH_NAMES }),
+        daysOfWeek: parseField({ rawField: dowStr, min: 0, max: 7, names: DAY_NAMES, isDayOfWeek: true }),
         originalExpression: expression,
         hasSeconds,
     }
 }
 
-export function validateCronExpression(expression: string): boolean {
+function validateCronExpression(expression: string): boolean {
     try {
         parseCronExpression(expression)
         return true
@@ -188,10 +182,8 @@ export function validateCronExpression(expression: string): boolean {
     }
 }
 
-export function computeNextTick(cronExpression: string, options?: NextTickOptions): Date {
+function computeNextTick({ cronExpression, timezone = 'UTC', fromDate = new Date() }: NextTickOptions & { cronExpression: string }): Date {
     const parsed = parseCronExpression(cronExpression)
-    const timezone = options?.timezone ?? 'UTC'
-    const fromDate = options?.fromDate ?? new Date()
 
     const dtf = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
@@ -264,8 +256,7 @@ export function computeNextTick(cronExpression: string, options?: NextTickOption
 
         // 1. Month check
         if (!parsed.months.values.has(p.month)) {
-            const msToNextDay = Math.max(3600000, ((24 - p.hour) * 3600 - p.minute * 60 - p.second) * 1000)
-            current = new Date(current.getTime() + msToNextDay)
+            current = advanceToNextLocalDay({ current, getParts })
             continue
         }
 
@@ -285,8 +276,7 @@ export function computeNextTick(cronExpression: string, options?: NextTickOption
         }
 
         if (!dayMatches) {
-            const msToNextDay = Math.max(3600000, ((24 - p.hour) * 3600 - p.minute * 60 - p.second) * 1000)
-            current = new Date(current.getTime() + msToNextDay)
+            current = advanceToNextLocalDay({ current, getParts })
             continue
         }
 
@@ -315,3 +305,22 @@ export function computeNextTick(cronExpression: string, options?: NextTickOption
 
     throw new Error(`Unable to compute next tick for cron expression "${cronExpression}" within search window`)
 }
+
+function advanceToNextLocalDay({ current, getParts }: { current: Date, getParts: (date: Date) => CalendarDay }): Date {
+    const origin = getParts(current)
+    const sameDay = (date: Date): boolean => {
+        const parts = getParts(date)
+        return parts.year === origin.year && parts.month === origin.month && parts.day === origin.day
+    }
+    let boundary = new Date(current.getTime() + 3_600_000)
+    while (sameDay(boundary)) boundary = new Date(boundary.getTime() + 3_600_000)
+    let candidate = new Date(Math.floor((boundary.getTime() - 3_600_000) / 60_000) * 60_000)
+    while (sameDay(candidate)) candidate = new Date(candidate.getTime() + 60_000)
+    return candidate
+}
+
+export const cronParser = { parseCronExpression, validateCronExpression, computeNextTick }
+
+type ParseValueParams = { valStr: string, min: number, max: number, names?: Record<string, number> }
+type ParseFieldParams = Omit<ParseValueParams, 'valStr'> & { rawField: string, isDayOfWeek?: boolean }
+type CalendarDay = { year: number, month: number, day: number }

@@ -2,6 +2,7 @@ import { scheduler } from '@inboxfm-connect/scheduler'
 import { ExecutionStatus, ScheduledTaskStatus } from '@inboxfm-connect/shared'
 import { FastifyInstance } from 'fastify'
 import { StatusCodes } from 'http-status-codes'
+import { vi } from 'vitest'
 import { db } from '../../../helpers/db'
 import { createTestContext } from '../../../helpers/test-context'
 import { setupTestEnvironment, teardownTestEnvironment } from '../../../helpers/test-setup'
@@ -106,15 +107,14 @@ describe('Scheduled trigger flow execution lifecycle (scheduler -> execution)', 
 
         expect(scheduler.has(taskId)).toBe(true)
 
-        // Wait for scheduler execution
-        await new Promise((resolve) => setTimeout(resolve, 80))
+        await vi.waitFor(() => expect(createdExecutionId).not.toBeNull(), { timeout: 5000, interval: 10 })
 
         expect(scheduler.has(taskId)).toBe(false)
         expect(createdExecutionId).toBeDefined()
 
-        const row = await db.findOneBy<Record<string, unknown>>('execution', { id: createdExecutionId! })
+        const row = await db.findOneBy<Record<string, unknown>>('execution', { id: createdExecutionId, projectId: ctx.project.id, platformId: ctx.platform.id })
         expect(row).toBeDefined()
-        expect(row!.prompt).toBe('Automated scheduler flow run')
-        expect(row!.projectId).toBe(ctx.project.id)
+        expect(row?.prompt).toBe('Automated scheduler flow run')
+        expect(row?.projectId).toBe(ctx.project.id)
     })
 })

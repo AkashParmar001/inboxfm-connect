@@ -1,13 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocalScheduler } from '../src/local-scheduler'
+import cron from 'node-cron'
 
 describe('LocalScheduler Lifecycle & Resilience', () => {
+    it('cancels the first task during concurrent same-name registration', async () => {
+        const task = cron.schedule('* * * * *', () => undefined)
+        const stop = vi.spyOn(task, 'stop')
+        const schedule = vi.spyOn(cron, 'schedule').mockReturnValue(task)
+        try {
+            const ids = await Promise.all([
+                LocalScheduler.cron({ name: 'concurrent', cronExpression: '* * * * *', fn: () => undefined }),
+                LocalScheduler.cron({ name: 'concurrent', cronExpression: '* * * * *', fn: () => undefined }),
+            ])
+            expect(ids).toEqual(['concurrent', 'concurrent'])
+            expect(schedule).toHaveBeenCalledTimes(2)
+            expect(stop).toHaveBeenCalledTimes(1)
+            expect(LocalScheduler.getActiveTaskCount()).toBe(1)
+        }
+        finally {
+            await LocalScheduler.shutdown()
+            schedule.mockRestore()
+            stop.mockRestore()
+            task.stop()
+        }
+    })
     beforeEach(async () => {
+        vi.useFakeTimers()
         await LocalScheduler.shutdown()
     })
 
     afterEach(async () => {
         await LocalScheduler.shutdown()
+        vi.useRealTimers()
     })
 
     describe('once() lifecycle', () => {
@@ -23,7 +47,7 @@ describe('LocalScheduler Lifecycle & Resilience', () => {
             expect(LocalScheduler.getActiveTaskCount()).toBe(1)
             expect(LocalScheduler.getTaskIds()).toContain(id)
 
-            await new Promise((r) => setTimeout(r, 40))
+            await vi.advanceTimersByTimeAsync(40)
 
             expect(fnMock).toHaveBeenCalledTimes(1)
             expect(LocalScheduler.has(id)).toBe(false)
@@ -41,7 +65,7 @@ describe('LocalScheduler Lifecycle & Resilience', () => {
             await LocalScheduler.cancel(id)
 
             expect(LocalScheduler.has(id)).toBe(false)
-            await new Promise((r) => setTimeout(r, 60))
+            await vi.advanceTimersByTimeAsync(60)
             expect(fnMock).not.toHaveBeenCalled()
         })
 
@@ -58,7 +82,7 @@ describe('LocalScheduler Lifecycle & Resilience', () => {
                 onError: onErrorMock,
             })
 
-            await new Promise((r) => setTimeout(r, 40))
+            await vi.advanceTimersByTimeAsync(40)
 
             expect(onErrorMock).toHaveBeenCalledTimes(1)
             expect(onErrorMock).toHaveBeenCalledWith({
@@ -82,7 +106,7 @@ describe('LocalScheduler Lifecycle & Resilience', () => {
                 onError: onErrorMock,
             })
 
-            await new Promise((r) => setTimeout(r, 40))
+            await vi.advanceTimersByTimeAsync(40)
 
             expect(onErrorMock).toHaveBeenCalledTimes(1)
             expect(onErrorMock).toHaveBeenCalledWith({
@@ -104,14 +128,14 @@ describe('LocalScheduler Lifecycle & Resilience', () => {
 
             expect(LocalScheduler.has(id)).toBe(true)
 
-            await new Promise((r) => setTimeout(r, 55))
+            await vi.advanceTimersByTimeAsync(55)
             expect(fnMock.mock.calls.length).toBeGreaterThanOrEqual(2)
 
             await LocalScheduler.cancel(id)
             expect(LocalScheduler.has(id)).toBe(false)
 
             const countAfterCancel = fnMock.mock.calls.length
-            await new Promise((r) => setTimeout(r, 40))
+            await vi.advanceTimersByTimeAsync(40)
             expect(fnMock.mock.calls.length).toBe(countAfterCancel)
         })
 
@@ -131,7 +155,7 @@ describe('LocalScheduler Lifecycle & Resilience', () => {
                 onError: onErrorMock,
             })
 
-            await new Promise((r) => setTimeout(r, 50))
+            await vi.advanceTimersByTimeAsync(50)
 
             await LocalScheduler.cancel(id)
             expect(onErrorMock).toHaveBeenCalledTimes(1)

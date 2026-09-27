@@ -64,20 +64,17 @@ await scheduler.shutdown()
 ### Utilities
 
 ```ts
-import {
-    validateCronExpression,
-    parseCronExpression,
-    computeNextTick,
-} from '@inboxfm-connect/scheduler'
+import { cronParser } from '@inboxfm-connect/scheduler'
 
 // Validation
-const isValid = validateCronExpression('*/15 * * * *') // true
+const isValid = cronParser.validateCronExpression('*/15 * * * *') // true
 
 // Parsing
-const schedule = parseCronExpression('0 9 * * 1-5')
+const schedule = cronParser.parseCronExpression('0 9 * * 1-5')
 
 // Next-tick computation (DST-safe)
-const nextDate = computeNextTick('30 2 * * *', {
+const nextDate = cronParser.computeNextTick({
+    cronExpression: '30 2 * * *',
     fromDate: new Date('2026-03-08T00:00:00Z'),
     timezone: 'America/New_York',
 })
