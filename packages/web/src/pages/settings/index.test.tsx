@@ -42,11 +42,21 @@ const BILLING_PORTAL_MATCH = (url: URL, method?: string) => url.pathname === '/a
 const BILLING_CHECKOUT_MATCH = (url: URL, method?: string) => url.pathname === '/api/v1/platform-billing/create-checkout-session' && method === 'POST'
 
 describe('Settings page', () => {
+  let assignSpy: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     localStorage.clear()
     signIn()
     vi.restoreAllMocks()
-    vi.spyOn(window, 'open').mockImplementation(() => null)
+    assignSpy = vi.fn()
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...window.location,
+        assign: assignSpy,
+      },
+      writable: true,
+      configurable: true,
+    })
   })
 
   it('renders settings page with project information, appearance, and community billing details', async () => {
@@ -125,7 +135,7 @@ describe('Settings page', () => {
     })
 
     await waitFor(() => portalCalled === true)
-    expect(window.open).toHaveBeenCalledWith('https://billing.stripe.com/session/test_session', '_blank', 'noopener,noreferrer')
+    expect(assignSpy).toHaveBeenCalledWith('https://billing.stripe.com/session/test_session')
   })
 
   it('renders past due warning banner when payment has failed', async () => {
@@ -198,6 +208,67 @@ describe('Settings page', () => {
     })
 
     await waitFor(() => checkoutCalled === true)
-    expect(window.open).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_test_123', '_blank', 'noopener,noreferrer')
+    expect(assignSpy).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_test_123')
+  })
+
+  it('renders trialing and unpaid badges appropriately', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      {
+        match: BILLING_INFO_MATCH,
+        respond: () => ({
+          body: {
+            plan: {
+              plan: 'standard',
+              stripeSubscriptionId: 'sub_trial',
+              stripeSubscriptionStatus: 'trialing',
+            },
+            usage: {},
+          },
+        }),
+      },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Trialing') === true)
+  })
+
+  it('renders incomplete badge for incomplete status', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      {
+        match: BILLING_INFO_MATCH,
+        respond: () => ({
+          body: {
+            plan: {
+              plan: 'standard',
+              stripeSubscriptionId: 'sub_inc',
+              stripeSubscriptionStatus: 'incomplete',
+            },
+            usage: {},
+          },
+        }),
+      },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Incomplete') === true)
+  })
+
+  it('does not expose upgrade or manage buttons while billing state is loading', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      {
+        match: BILLING_INFO_MATCH,
+        respond: () => ({
+          stream: new ReadableStream<Uint8Array>({ start() {} }),
+        }),
+      },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Loading billing status...') === true)
+    expect(container.textContent?.includes('Upgrade to Paid Tier')).toBe(false)
+    expect(container.textContent?.includes('Manage in Stripe')).toBe(false)
   })
 })

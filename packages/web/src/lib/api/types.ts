@@ -518,7 +518,14 @@ export interface UpdateScheduledTaskRequest {
   status?: AutomationStatus
 }
 
-export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'unpaid' | 'incomplete' | 'trialing'
+export type SubscriptionStatus =
+  | 'active'
+  | 'canceled'
+  | 'past_due'
+  | 'unpaid'
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'trialing'
 
 export interface PlatformPlanInfo {
   plan: string

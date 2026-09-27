@@ -1,10 +1,11 @@
-import { assertNotNullOrUndefined } from '@inboxfm-connect/core-utils'
+import { ActivepiecesError, assertNotNullOrUndefined, ErrorCode, isNil } from '@inboxfm-connect/core-utils'
 import { CreateAICreditCheckoutSessionParamsSchema, CreateCheckoutSessionParamsSchema, PlatformBillingInformation, PrincipalType, STANDARD_CLOUD_PLAN, UpdateActiveFlowsAddonParamsSchema, UpdateAICreditsAutoTopUpParamsSchema } from '@inboxfm-connect/shared'
 import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { StatusCodes } from 'http-status-codes'
 import { z } from 'zod'
 import { securityAccess } from '../../../core/security/authorization/fastify-security'
 import { platformService } from '../../../platform/platform.service'
+import { userService } from '../../../user/user-service'
 import { platformAiCreditsService } from './platform-ai-credits.service'
 import { platformPlanService } from './platform-plan.service'
 import { stripeHelper } from './stripe-helper'
@@ -38,18 +39,65 @@ export const platformPlanController: FastifyPluginAsyncZod = async (fastify) => 
             security: securityAccess.platformAdminOnly([PrincipalType.USER]),
         },
     }, async (request) => {
+        const stripe = stripeHelper(request.log).getStripe()
+        if (isNil(stripe)) {
+            throw new ActivepiecesError({
+                code: ErrorCode.VALIDATION,
+                params: {
+                    message: 'Stripe billing is not configured on this instance',
+                },
+            })
+        }
+        const platformPlan = await platformPlanService(request.log).getOrCreateForPlatform(request.principal.platform.id)
+        if (isNil(platformPlan.stripeCustomerId)) {
+            throw new ActivepiecesError({
+                code: ErrorCode.VALIDATION,
+                params: {
+                    message: 'No active Stripe billing customer exists for this platform',
+                },
+            })
+        }
         const url = await stripeHelper(request.log).createPortalSessionUrl(request.principal.platform.id)
         return { url }
     })
 
     fastify.post('/create-checkout-session', CreateCheckoutSessionRequest, async (request) => {
-        const { stripeCustomerId: customerId, ...platformPlan } = await platformPlanService(request.log).getOrCreateForPlatform(request.principal.platform.id)
-        assertNotNullOrUndefined(customerId, 'Stripe customer id is not set')
+        const stripe = stripeHelper(request.log).getStripe()
+        if (isNil(stripe)) {
+            throw new ActivepiecesError({
+                code: ErrorCode.VALIDATION,
+                params: {
+                    message: 'Stripe billing is not configured on this instance',
+                },
+            })
+        }
+
+        const platformPlan = await platformPlanService(request.log).getOrCreateForPlatform(request.principal.platform.id)
+
+        let customerId = platformPlan.stripeCustomerId
+        if (isNil(customerId)) {
+            const platform = await platformService(request.log).getOneOrThrow(request.principal.platform.id)
+            const owner = await userService(request.log).getMetaInformation({ id: platform.ownerId })
+            customerId = await stripeHelper(request.log).createCustomer(owner, platform.id)
+            await platformPlanService(request.log).update({
+                platformId: platform.id,
+                stripeCustomerId: customerId,
+            })
+        }
 
         const { newActiveFlowsLimit } = request.body
 
         const baseActiveFlowsLimit = STANDARD_CLOUD_PLAN.activeFlowsLimit ?? 0
         const extraActiveFlows = Math.max(0, newActiveFlowsLimit - baseActiveFlowsLimit)
+
+        if (extraActiveFlows <= 0) {
+            throw new ActivepiecesError({
+                code: ErrorCode.VALIDATION,
+                params: {
+                    message: `Requested active flows limit (${newActiveFlowsLimit}) must exceed base plan limit (${baseActiveFlowsLimit}) to purchase additional flows.`,
+                },
+            })
+        }
 
         const stripeCheckoutUrl = await stripeHelper(request.log).createNewSubscriptionCheckoutSession({
             platformId: platformPlan.platformId,
@@ -60,8 +108,25 @@ export const platformPlanController: FastifyPluginAsyncZod = async (fastify) => 
     })
 
     fastify.post('/update-active-flows-addon', UpdateActiveFlowsAddonRequest, async (request) => {
+        const stripe = stripeHelper(request.log).getStripe()
+        if (isNil(stripe)) {
+            throw new ActivepiecesError({
+                code: ErrorCode.VALIDATION,
+                params: {
+                    message: 'Stripe billing is not configured on this instance',
+                },
+            })
+        }
+
         const { stripeCustomerId: customerId, ...platformPlan } = await platformPlanService(request.log).getOrCreateForPlatform(request.principal.platform.id)
-        assertNotNullOrUndefined(customerId, 'Stripe customer id is not set')
+        if (isNil(customerId)) {
+            throw new ActivepiecesError({
+                code: ErrorCode.VALIDATION,
+                params: {
+                    message: 'No active Stripe billing customer exists for this platform',
+                },
+            })
+        }
 
         const { newActiveFlowsLimit } = request.body
 

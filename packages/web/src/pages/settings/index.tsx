@@ -26,7 +26,7 @@ export default function SettingsPage() {
     try {
       const { url } = await portalMutation.mutateAsync()
       if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer')
+        window.location.assign(url)
       }
     } catch {
       toast.error('Could not generate Stripe billing portal session')
@@ -38,7 +38,7 @@ export default function SettingsPage() {
       const res = await checkoutMutation.mutateAsync({ newActiveFlowsLimit: 25 })
       const checkoutUrl = res.stripeCheckoutUrl || res.url
       if (checkoutUrl) {
-        window.open(checkoutUrl, '_blank', 'noopener,noreferrer')
+        window.location.assign(checkoutUrl)
       }
     } catch {
       toast.error('Could not initiate Stripe checkout session')
@@ -66,9 +66,24 @@ export default function SettingsPage() {
                   Active Subscription
                 </Badge>
               )}
+              {billingInfo?.plan?.stripeSubscriptionStatus === 'trialing' && (
+                <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-500/20 bg-blue-500/10">
+                  Trialing
+                </Badge>
+              )}
               {billingInfo?.plan?.stripeSubscriptionStatus === 'past_due' && (
                 <Badge variant="destructive">
                   Payment Past Due
+                </Badge>
+              )}
+              {billingInfo?.plan?.stripeSubscriptionStatus === 'unpaid' && (
+                <Badge variant="destructive">
+                  Unpaid
+                </Badge>
+              )}
+              {(billingInfo?.plan?.stripeSubscriptionStatus === 'incomplete' || billingInfo?.plan?.stripeSubscriptionStatus === 'incomplete_expired') && (
+                <Badge variant="secondary" className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+                  Incomplete
                 </Badge>
               )}
               {(!billingInfo?.plan?.stripeSubscriptionStatus || billingInfo?.plan?.stripeSubscriptionStatus === 'canceled') && (
@@ -82,7 +97,7 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {billingInfo?.plan?.stripeSubscriptionStatus === 'past_due' && (
+            {(billingInfo?.plan?.stripeSubscriptionStatus === 'past_due' || billingInfo?.plan?.stripeSubscriptionStatus === 'unpaid') && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <div className="space-y-1">
@@ -112,7 +127,12 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              {billingInfo?.plan?.stripeSubscriptionId ? (
+              {billingQuery.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Loading billing status...</span>
+                </div>
+              ) : billingInfo?.plan?.stripeSubscriptionId ? (
                 <Button
                   size="sm"
                   variant="outline"

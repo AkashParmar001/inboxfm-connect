@@ -5,6 +5,7 @@ import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { StatusCodes } from 'http-status-codes'
 import Stripe from 'stripe'
 import { securityAccess } from '../../../core/security/authorization/fastify-security'
+import { distributedStore } from '../../../database/redis-connections'
 import { exceptionHandler } from '../../../helper/exception-handler'
 import { system } from '../../../helper/system/system'
 import { AppSystemProp } from '../../../helper/system/system-props'
@@ -41,14 +42,22 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                         } 
 
                         if (session.metadata.type === StripeCheckoutType.AI_CREDIT_PAYMENT) {
-                            const platformId = session.metadata.platformId as string
-                            const intent = await stripe.paymentIntents.retrieve(
-                                session.payment_intent as string,
-                            )
-                            const amountInCents = intent.amount
-                            const amountInUsd = amountInCents / 100
+                            const sessionId = session.id
+                            const creditKey = `stripe_credit_processed_${sessionId}`
+                            const notYetProcessed = await distributedStore.putIfAbsent(creditKey, 1, 86400 * 30)
+                            if (notYetProcessed) {
+                                const platformId = session.metadata.platformId as string
+                                const intent = await stripe.paymentIntents.retrieve(
+                                    session.payment_intent as string,
+                                )
+                                const amountInCents = intent.amount
+                                const amountInUsd = amountInCents / 100
 
-                            await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_PAYMENT)
+                                await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_PAYMENT)
+                            }
+                            else {
+                                request.log.info({ sessionId }, 'Duplicate AI credit checkout session completed, skipping credit grant')
+                            }
                         }
                         if (session.metadata.type === StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP) {
                             const setupIntent = await stripe.setupIntents.retrieve(
@@ -80,10 +89,18 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                         }
 
                         if (!isNil(invoice.metadata) && invoice.metadata.type === StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP) {
-                            const platformId = invoice.metadata.platformId as string
-                            const amountInCents = invoice.amount_paid
-                            const amountInUsd = amountInCents / 100
-                            await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP)
+                            const invoiceId = invoice.id
+                            const creditKey = `stripe_credit_processed_${invoiceId}`
+                            const notYetProcessed = await distributedStore.putIfAbsent(creditKey, 1, 86400 * 30)
+                            if (notYetProcessed) {
+                                const platformId = invoice.metadata.platformId as string
+                                const amountInCents = invoice.amount_paid
+                                const amountInUsd = amountInCents / 100
+                                await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP)
+                            }
+                            else {
+                                request.log.info({ invoiceId }, 'Duplicate invoice.paid AI credit top-up ignored')
+                            }
                         }
                         break
                     }
@@ -97,11 +114,24 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                                 const subscription = await stripe.subscriptions.retrieve(subscriptionId)
                                 const platformId = subscription.metadata?.platformId
                                 if (typeof platformId === 'string') {
-                                    request.log.warn({ platformId, subscriptionId }, 'Stripe subscription invoice payment failed, entering past_due state')
-                                    await platformPlanService(request.log).update({
-                                        platformId,
-                                        stripeSubscriptionStatus: ApSubscriptionStatus.PAST_DUE,
-                                    })
+                                    // Resilient to out-of-order events: verify live status from Stripe
+                                    if (subscription.status === 'past_due') {
+                                        request.log.warn({ platformId, subscriptionId }, 'Stripe subscription invoice payment failed, entering past_due state')
+                                        await platformPlanService(request.log).update({
+                                            platformId,
+                                            stripeSubscriptionStatus: ApSubscriptionStatus.PAST_DUE,
+                                        })
+                                    }
+                                    else if (subscription.status === 'unpaid') {
+                                        request.log.warn({ platformId, subscriptionId }, 'Stripe subscription invoice payment failed, entering unpaid state')
+                                        await platformPlanService(request.log).update({
+                                            platformId,
+                                            stripeSubscriptionStatus: ApSubscriptionStatus.UNPAID,
+                                        })
+                                    }
+                                    else if (subscription.status === 'active') {
+                                        request.log.info({ platformId, subscriptionId, liveStatus: subscription.status }, 'Stale invoice.payment_failed event ignored because subscription is currently active in Stripe')
+                                    }
                                 }
                             }
                         }
@@ -111,7 +141,11 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                     case 'customer.subscription.created':
                     case 'customer.subscription.updated': {
                         const subscription = webhook.data.object as Stripe.Subscription
-                        const platformId = subscription.metadata.platformId as string
+                        const platformId = subscription.metadata?.platformId
+                        if (isNil(platformId)) {
+                            request.log.warn({ subscriptionId: subscription.id }, 'Stripe subscription missing platformId metadata, skipping update')
+                            break
+                        }
 
                         const { startDate, endDate, cancelDate } = await stripeHelper(request.log).getSubscriptionCycleDates(subscription)
 
@@ -137,12 +171,37 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                             newLimits.activeFlowsLimit = (newLimits.activeFlowsLimit ?? 0) + extraActiveFlows
                         }
 
+                        let stripeSubscriptionStatus: ApSubscriptionStatus
+                        switch (subscription.status) {
+                            case 'active':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.ACTIVE
+                                break
+                            case 'past_due':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.PAST_DUE
+                                break
+                            case 'unpaid':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.UNPAID
+                                break
+                            case 'incomplete':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.INCOMPLETE
+                                break
+                            case 'incomplete_expired':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.INCOMPLETE_EXPIRED
+                                break
+                            case 'trialing':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.TRIALING
+                                break
+                            default:
+                                stripeSubscriptionStatus = ApSubscriptionStatus.CANCELED
+                                break
+                        }
+
                         await platformPlanService(request.log).update({ 
                             ...newLimits,
                             platformId,
                             plan: PlanName.STANDARD,
                             stripeSubscriptionId: subscription.id,
-                            stripeSubscriptionStatus: subscription.status as ApSubscriptionStatus,
+                            stripeSubscriptionStatus,
                             stripeSubscriptionStartDate: startDate,
                             stripeSubscriptionEndDate: endDate,
                             stripeSubscriptionCancelDate: cancelDate,

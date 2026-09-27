@@ -32,12 +32,12 @@ export const METRIC_TO_USAGE_MAPPING = {
 } as const
 
 export const UpdateActiveFlowsAddonParamsSchema = z.object({
-    newActiveFlowsLimit: z.number(),
+    newActiveFlowsLimit: z.number().int().min(1, 'Active flows limit must be at least 1').max(10000, 'Active flows limit cannot exceed 10000'),
 })
 export type UpdateActiveFlowsAddonParams = z.infer<typeof UpdateActiveFlowsAddonParamsSchema>
 
 export const CreateCheckoutSessionParamsSchema = z.object({
-    newActiveFlowsLimit: z.number(),
+    newActiveFlowsLimit: z.number().int().min(1, 'Active flows limit must be at least 1').max(10000, 'Active flows limit cannot exceed 10000'),
 })
 export type CreateSubscriptionParams = z.infer<typeof CreateCheckoutSessionParamsSchema>
 
