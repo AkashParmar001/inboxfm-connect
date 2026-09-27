@@ -8,7 +8,7 @@ import { AppSystemProp } from '../../../helper/system/system-props'
 import { ACTIVE_FLOW_PRICE_ID, platformPlanService } from './platform-plan.service'
 
 export const stripeWebhookSecret = system.get(AppSystemProp.STRIPE_WEBHOOK_SECRET)!
-const frontendUrl = system.get(AppSystemProp.FRONTEND_URL)
+const getFrontendUrl = (): string => system.getOrThrow(AppSystemProp.FRONTEND_URL)
 
 export const stripeHelper = (log: FastifyBaseLogger) => ({
     getStripe: (): Stripe | undefined => {
@@ -41,7 +41,7 @@ export const stripeHelper = (log: FastifyBaseLogger) => ({
         const platformBilling = await platformPlanService(log).getOrCreateForPlatform(platformId)
         const session = await stripe.billingPortal.sessions.create({
             customer: platformBilling.stripeCustomerId!,
-            return_url: `${frontendUrl || 'http://localhost:4200'}/settings`,
+            return_url: `${getFrontendUrl()}/settings`,
         })
 
         return session.url
@@ -61,8 +61,8 @@ export const stripeHelper = (log: FastifyBaseLogger) => ({
                 type: StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP,
             },
 
-            success_url: `${frontendUrl}/platform/setup/billing/success?action=ai-credit-auto-topup`,
-            cancel_url: `${frontendUrl}/platform/setup/billing/error`,
+            success_url: `${getFrontendUrl()}/platform/setup/billing/success?action=ai-credit-auto-topup`,
+            cancel_url: `${getFrontendUrl()}/platform/setup/billing/error`,
         })
 
         return session.url!
@@ -158,8 +158,8 @@ export const stripeHelper = (log: FastifyBaseLogger) => ({
             },
             allow_promotion_codes: true,
             customer: customerId,
-            success_url: `${frontendUrl}/platform/setup/billing/success?action=ai-credit-payment`,
-            cancel_url: `${frontendUrl}/platform/setup/billing/error`,
+            success_url: `${getFrontendUrl()}/platform/setup/billing/success?action=ai-credit-payment`,
+            cancel_url: `${getFrontendUrl()}/platform/setup/billing/error`,
         })
         
         return session.url!
@@ -190,8 +190,8 @@ export const stripeHelper = (log: FastifyBaseLogger) => ({
             },
             allow_promotion_codes: true,
             customer: customerId,
-            success_url: `${frontendUrl || 'http://localhost:4200'}/settings?billing=success`,
-            cancel_url: `${frontendUrl || 'http://localhost:4200'}/settings?billing=canceled`,
+            success_url: `${getFrontendUrl()}/settings?billing=success`,
+            cancel_url: `${getFrontendUrl()}/settings?billing=canceled`,
         })
         
         return session.url!

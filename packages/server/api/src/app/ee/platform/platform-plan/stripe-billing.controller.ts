@@ -46,14 +46,20 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                             const creditKey = `stripe_credit_processed_${sessionId}`
                             const notYetProcessed = await distributedStore.putIfAbsent(creditKey, 1, 86400 * 30)
                             if (notYetProcessed) {
-                                const platformId = session.metadata.platformId as string
-                                const intent = await stripe.paymentIntents.retrieve(
-                                    session.payment_intent as string,
-                                )
-                                const amountInCents = intent.amount
-                                const amountInUsd = amountInCents / 100
+                                try {
+                                    const platformId = session.metadata.platformId as string
+                                    const intent = await stripe.paymentIntents.retrieve(
+                                        session.payment_intent as string,
+                                    )
+                                    const amountInCents = intent.amount
+                                    const amountInUsd = amountInCents / 100
 
-                                await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_PAYMENT)
+                                    await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_PAYMENT)
+                                }
+                                catch (err) {
+                                    await distributedStore.delete(creditKey)
+                                    throw err
+                                }
                             }
                             else {
                                 request.log.info({ sessionId }, 'Duplicate AI credit checkout session completed, skipping credit grant')
@@ -93,10 +99,16 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                             const creditKey = `stripe_credit_processed_${invoiceId}`
                             const notYetProcessed = await distributedStore.putIfAbsent(creditKey, 1, 86400 * 30)
                             if (notYetProcessed) {
-                                const platformId = invoice.metadata.platformId as string
-                                const amountInCents = invoice.amount_paid
-                                const amountInUsd = amountInCents / 100
-                                await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP)
+                                try {
+                                    const platformId = invoice.metadata.platformId as string
+                                    const amountInCents = invoice.amount_paid
+                                    const amountInUsd = amountInCents / 100
+                                    await platformAiCreditsService(request.log).aiCreditsPaymentSucceeded(platformId, amountInUsd, StripeCheckoutType.AI_CREDIT_AUTO_TOP_UP)
+                                }
+                                catch (err) {
+                                    await distributedStore.delete(creditKey)
+                                    throw err
+                                }
                             }
                             else {
                                 request.log.info({ invoiceId }, 'Duplicate invoice.paid AI credit top-up ignored')
@@ -191,6 +203,9 @@ export const stripeBillingController: FastifyPluginAsyncZod = async (fastify) =>
                             case 'trialing':
                                 stripeSubscriptionStatus = ApSubscriptionStatus.TRIALING
                                 break
+                            case 'paused':
+                                stripeSubscriptionStatus = ApSubscriptionStatus.PAUSED
+                                break
                             default:
                                 stripeSubscriptionStatus = ApSubscriptionStatus.CANCELED
                                 break
@@ -234,12 +249,16 @@ function extractSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | und
         return parentSubscription.id
     }
 
-    const lineSubscription = invoice.lines?.data?.[0]?.subscription
-    if (typeof lineSubscription === 'string') {
-        return lineSubscription
-    }
-    if (!isNil(lineSubscription) && typeof lineSubscription === 'object' && 'id' in lineSubscription && typeof lineSubscription.id === 'string') {
-        return lineSubscription.id
+    if (invoice.lines?.data) {
+        for (const line of invoice.lines.data) {
+            const lineSubscription = line.subscription
+            if (typeof lineSubscription === 'string') {
+                return lineSubscription
+            }
+            if (!isNil(lineSubscription) && typeof lineSubscription === 'object' && 'id' in lineSubscription && typeof lineSubscription.id === 'string') {
+                return lineSubscription.id
+            }
+        }
     }
 
     return undefined
