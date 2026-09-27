@@ -79,6 +79,7 @@ describe('FetchHttpClient TLS security', () => {
     expect(process.env['NODE_TLS_REJECT_UNAUTHORIZED']).toBe('1')
   })
 
+  // Mocks TLS rejection; real network path can be verified with manual smoke against badssl.com
   it('propagates TLS connection rejection when self-signed certificate fails verification', async () => {
     const tlsCause = new Error('self signed certificate in certificate chain')
     const tlsError = new TypeError('fetch failed')
