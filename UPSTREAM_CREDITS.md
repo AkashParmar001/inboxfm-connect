@@ -7,4 +7,3 @@ The [Activepieces contributor graph](https://github.com/activepieces/activepiece
 Existing Git history and upstream notices are retained. Credits supplement the [root LICENSE](LICENSE), [Enterprise license](packages/ee/LICENSE), and any other applicable notices; see [LICENSING.md](LICENSING.md).
 
 The adapted [Code of Conduct](.github/CODE_OF_CONDUCT.md) retains its Stumptown Syndicate and Mozilla sources and Creative Commons Attribution-ShareAlike notice.
-

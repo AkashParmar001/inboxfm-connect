@@ -20,4 +20,3 @@ runs:
       env:
         HUSKY: '0'
       run: bun install --frozen-lockfile
-

@@ -21,6 +21,8 @@ Integration formatting checks cover changed packages. A change to the root lint/
 
 The jobs do not require publishing, cloud deployment, or paid cache credentials. Repository content permission is read-only, checkout credentials are not persisted, and untrusted PR code does not run through `pull_request_target` with deployment secrets.
 
+PR edits validate the title and contribution destination using metadata only. A bot updating a PR description does not restart the full test matrix. Code changes, reopening, and marking a PR ready for review trigger content validation.
+
 ## Diagnostics and reproduction
 
 Test and quality jobs save their console output as artifacts even on failure, together with any generated coverage/JUnit files. The PostgreSQL job saves its driver-test log. Artifacts are retained for seven days.
@@ -54,4 +56,3 @@ Upstream-specific preview, browser-E2E, release, translation, and monitoring aut
 The public SDK release workflow has its own environment, smoke target, tag, and publishing gates; see [the SDK release documentation](../packages/connect-sdk/README.md). Benchmark self-tests run in primary CI; a configured performance environment is required for live regression runs.
 
 The inherited browser-E2E package has outstanding setup work tracked in [#134](https://github.com/Mihir-Rabari/inboxfm-connect/issues/134). Unit/web/API integration tests run today; they are not a substitute for browser-E2E coverage.
-

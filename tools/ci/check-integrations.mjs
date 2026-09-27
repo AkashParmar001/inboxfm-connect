@@ -18,4 +18,3 @@ for (const [task, files] of Object.entries(impact)) {
     console.log(`Checking ${task} for ${names.length} integration packages against ${base}.`)
     execFileSync('bun', ['x', 'turbo', 'run', task, '--concurrency=2', ...names.map((name) => `--filter=${name}`)], { stdio: 'inherit' })
 }
-

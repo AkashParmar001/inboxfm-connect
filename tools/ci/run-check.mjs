@@ -31,4 +31,3 @@ switch (suite) {
     default:
         throw new Error(`Unknown CI suite: ${suite}`)
 }
-

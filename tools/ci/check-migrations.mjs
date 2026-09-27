@@ -22,4 +22,3 @@ try {
 } finally {
     rmSync(configPath, { recursive: true, force: true })
 }
-
