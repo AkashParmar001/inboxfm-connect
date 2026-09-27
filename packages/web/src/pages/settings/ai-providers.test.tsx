@@ -11,6 +11,7 @@ import { testProject, testUser } from '@/test/fixtures/api-keys'
 import { createTestQueryClient, mount, waitFor } from '@/test/test-utils'
 import type {
   CreateAIProviderRequest,
+  OpenAICompatibleProviderConfig,
   UpdateAIProviderRequest,
 } from '@inboxfm-connect/shared'
 import { AIProviderModelType, AIProviderName } from '@/lib/api/ai-providers'
@@ -387,5 +388,131 @@ describe('AI Provider management in Settings page', () => {
     })
 
     await waitFor(() => deletedId === 'prov_anthropic')
+  })
+
+  it('disables chat toggle for platform-managed Activepieces provider', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: defaultBilling }) },
+      { match: AI_PROVIDERS_MATCH, respond: () => ({ body: sampleProviders }) },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Activepieces') === true)
+
+    const managedToggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Toggle chat for Activepieces"]'
+    )
+    expect(managedToggle).not.toBeNull()
+    expect(managedToggle?.hasAttribute('disabled')).toBe(true)
+    expect(managedToggle?.getAttribute('title')).toBe('Platform-managed provider cannot be disabled')
+  })
+
+  it('preserves existing custom models and defaultHeaders when editing a custom provider', async () => {
+    let updatePayload: UpdateAIProviderRequest | null = null
+    const customProvider = {
+      id: 'prov_custom',
+      name: 'Local Ollama',
+      provider: AIProviderName.CUSTOM,
+      config: {
+        baseUrl: 'https://ollama.local/v1',
+        apiKeyHeader: 'Authorization',
+        models: [{ modelId: 'llama3', modelName: 'Llama 3', modelType: AIProviderModelType.TEXT }],
+        defaultHeaders: { 'X-Custom-Header': 'custom-val' },
+      },
+      enabledForChat: false,
+    }
+
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: defaultBilling }) },
+      { match: AI_PROVIDERS_MATCH, respond: () => ({ body: [customProvider] }) },
+      {
+        match: AI_PROVIDER_UPDATE_MATCH,
+        respond: (_url, _init, body) => {
+          updatePayload = body as UpdateAIProviderRequest
+          return { status: 200, body: {} }
+        },
+      },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Local Ollama') === true)
+
+    const editBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Edit Local Ollama"]')
+    expect(editBtn).not.toBeNull()
+
+    await act(async () => {
+      editBtn?.click()
+    })
+
+    await waitFor(() => document.body.textContent?.includes('Edit AI Provider — Local Ollama') === true)
+
+    await setInputValue('input[placeholder="e.g. OpenAI Production"]', 'Local Ollama Renamed')
+
+    const saveBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.trim() === 'Save Changes'
+    )
+    expect(saveBtn).toBeDefined()
+
+    await act(async () => {
+      saveBtn?.click()
+    })
+
+    await waitFor(() => updatePayload !== null)
+    const payload = updatePayload as unknown as UpdateAIProviderRequest
+    expect(payload.displayName).toBe('Local Ollama Renamed')
+    expect(payload.auth).toBeUndefined()
+    const config = payload.config as OpenAICompatibleProviderConfig
+    expect(config.baseUrl).toBe('https://ollama.local/v1')
+    expect(config.models).toEqual([
+      { modelId: 'llama3', modelName: 'Llama 3', modelType: AIProviderModelType.TEXT },
+    ])
+    expect(config.defaultHeaders).toEqual({ 'X-Custom-Header': 'custom-val' })
+  })
+
+  it('validates Bedrock partial credentials and requires both or none on edit', async () => {
+    const bedrockProvider = {
+      id: 'prov_bedrock',
+      name: 'AWS Bedrock Production',
+      provider: AIProviderName.BEDROCK,
+      config: { region: 'us-east-1' },
+      enabledForChat: false,
+    }
+
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: defaultBilling }) },
+      { match: AI_PROVIDERS_MATCH, respond: () => ({ body: [bedrockProvider] }) },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('AWS Bedrock Production') === true)
+
+    const editBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Edit AWS Bedrock Production"]')
+    expect(editBtn).not.toBeNull()
+
+    await act(async () => {
+      editBtn?.click()
+    })
+
+    await waitFor(() => document.body.textContent?.includes('Edit AI Provider — AWS Bedrock Production') === true)
+
+    // Enter only access key, leaving secret key empty
+    await setInputValue('#bedrock-access-key', 'AKIA12345EXAMPLE')
+
+    const saveBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.trim() === 'Save Changes'
+    )
+    expect(saveBtn).toBeDefined()
+
+    await act(async () => {
+      saveBtn?.click()
+    })
+
+    await waitFor(() =>
+      document.body.textContent?.includes('Both Access Key ID and Secret Access Key must be provided') === true
+    )
+    expect(document.body.textContent).toContain('Both Access Key ID and Secret Access Key must be provided')
   })
 })

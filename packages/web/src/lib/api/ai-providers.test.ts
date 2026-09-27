@@ -1,3 +1,4 @@
+import type { CreateAIProviderRequest } from '@inboxfm-connect/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { aiProvidersApi, AIProviderModelType, AIProviderName } from './ai-providers'
 import { apiClient } from './client'
@@ -47,9 +48,9 @@ describe('aiProvidersApi', () => {
   it('creates an AI provider via POST /ai-providers', async () => {
     const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue(undefined)
 
-    const req = {
+    const req: CreateAIProviderRequest = {
       displayName: 'OpenAI Production',
-      provider: AIProviderName.OPENAI as const,
+      provider: AIProviderName.OPENAI,
       auth: { apiKey: 'sk-test' },
       config: {},
     }

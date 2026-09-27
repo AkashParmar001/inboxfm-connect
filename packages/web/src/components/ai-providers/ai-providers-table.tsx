@@ -58,6 +58,7 @@ export function AIProvidersTable({
           {providers.map((p) => {
             const isManaged = p.provider === AIProviderName.ACTIVEPIECES
             const isToggling = togglingId === p.id
+            const isAnyToggling = togglingId !== null
 
             return (
               <tr key={p.id} className="hover:bg-muted/30 transition-colors">
@@ -88,9 +89,10 @@ export function AIProvidersTable({
                     <Switch
                       id={`chat-toggle-${p.id}`}
                       checked={p.enabledForChat}
-                      disabled={isToggling}
+                      disabled={isAnyToggling || isManaged}
                       onCheckedChange={(checked) => onToggleChat(p, checked)}
                       aria-label={`Toggle chat for ${p.name}`}
+                      title={isManaged ? 'Platform-managed provider cannot be disabled' : undefined}
                     />
                     {isToggling ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />

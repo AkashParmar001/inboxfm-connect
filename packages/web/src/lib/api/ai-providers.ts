@@ -1,3 +1,7 @@
+import {
+  AIProviderModelType,
+  AIProviderName,
+} from '@inboxfm-connect/shared'
 import type {
   AIProviderModel,
   AIProviderWithoutSensitiveData,
@@ -6,23 +10,7 @@ import type {
 } from '@inboxfm-connect/shared'
 import { apiClient } from './client'
 
-export enum AIProviderName {
-  OPENAI = 'openai',
-  OPENROUTER = 'openrouter',
-  ANTHROPIC = 'anthropic',
-  AZURE = 'azure',
-  GOOGLE = 'google',
-  ACTIVEPIECES = 'activepieces',
-  CLOUDFLARE_GATEWAY = 'cloudflare-gateway',
-  CUSTOM = 'custom',
-  BEDROCK = 'bedrock',
-  MISTRAL = 'mistral',
-}
-
-export enum AIProviderModelType {
-  IMAGE = 'image',
-  TEXT = 'text',
-}
+export { AIProviderModelType, AIProviderName }
 
 const AI_PROVIDERS_PATH = '/ai-providers'
 

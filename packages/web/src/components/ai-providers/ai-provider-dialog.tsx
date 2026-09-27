@@ -144,7 +144,13 @@ export function AIProviderDialog({
         let configObj: AIProviderConfig | undefined = undefined
 
         if (provider === AIProviderName.BEDROCK) {
-          if (bedrockAccessKey.trim() && bedrockSecretKey.trim()) {
+          const hasAccess = Boolean(bedrockAccessKey.trim())
+          const hasSecret = Boolean(bedrockSecretKey.trim())
+          if ((hasAccess && !hasSecret) || (!hasAccess && hasSecret)) {
+            setValidationError('Both Access Key ID and Secret Access Key must be provided (or leave both empty to keep existing credentials)')
+            return
+          }
+          if (hasAccess && hasSecret) {
             authObj = { accessKeyId: bedrockAccessKey.trim(), secretAccessKey: bedrockSecretKey.trim() }
           }
           configObj = { region: bedrockRegion.trim() || 'us-east-1' }
@@ -160,19 +166,41 @@ export function AIProviderDialog({
           if (apiKey.trim()) {
             authObj = { apiKey: apiKey.trim() }
           }
+          const prevConfig = editingProvider?.config
+          const prevModels = prevConfig && 'models' in prevConfig && Array.isArray(prevConfig.models)
+            ? prevConfig.models
+            : []
+          const prevHeaders = prevConfig && 'defaultHeaders' in prevConfig && typeof prevConfig.defaultHeaders === 'object' && prevConfig.defaultHeaders !== null
+            ? (prevConfig.defaultHeaders as Record<string, string>)
+            : undefined
+
           configObj = {
             baseUrl: customBaseUrl.trim(),
             apiKeyHeader: customKeyHeader.trim() || 'Authorization',
-            models: [],
+            models: prevModels,
+            ...(prevHeaders ? { defaultHeaders: prevHeaders } : {}),
           }
         } else if (provider === AIProviderName.CLOUDFLARE_GATEWAY) {
           if (apiKey.trim()) {
             authObj = { apiKey: apiKey.trim() }
           }
+          const prevConfig = editingProvider?.config
+          const prevModels = prevConfig && 'models' in prevConfig && Array.isArray(prevConfig.models)
+            ? prevConfig.models
+            : []
+          const prevVertexProject = prevConfig && 'vertexProject' in prevConfig && typeof prevConfig.vertexProject === 'string'
+            ? prevConfig.vertexProject
+            : undefined
+          const prevVertexRegion = prevConfig && 'vertexRegion' in prevConfig && typeof prevConfig.vertexRegion === 'string'
+            ? prevConfig.vertexRegion
+            : undefined
+
           configObj = {
             accountId: cfAccountId.trim(),
             gatewayId: cfGatewayId.trim(),
-            models: [],
+            models: prevModels,
+            ...(prevVertexProject ? { vertexProject: prevVertexProject } : {}),
+            ...(prevVertexRegion ? { vertexRegion: prevVertexRegion } : {}),
           }
         } else {
           // Standard providers
