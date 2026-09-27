@@ -3,9 +3,9 @@ import {
     DataSource,
     EntitySchema,
 } from 'typeorm'
+import { AgentEntity } from '../agents/agent.entity'
 import { AIProviderEntity } from '../ai/ai-provider-entity'
 import { AiToolConfigEntity } from '../ai/ai-tool-config-entity'
-import { AgentEntity } from '../agents/agent.entity'
 import { PlatformAnalyticsReportEntity } from '../analytics/platform-analytics-report.entity'
 import { ApiKeyEntity } from '../api-keys/api-key.entity'
 import { ConnectionEntity } from '../app-connection/app-connection.entity'
@@ -59,7 +59,7 @@ import { createPostgresDataSource } from './postgres-connection'
 
 const databaseType = system.get(AppSystemProp.DB_TYPE)
 
-function getEntities(): EntitySchema<unknown>[] {
+export function getEntities(): EntitySchema<unknown>[] {
     return [
         ExecutionEntity,
         ToolCallEntity,
