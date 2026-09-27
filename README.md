@@ -95,8 +95,8 @@ const tools = await inboxfm.listTools({
 // After the customer connects, resolve their connection within this project.
 const connections = await inboxfm.listConnections({ externalUserId, pieceName: integration })
 // Choose a returned connection and a tool from tools; use the tool's input schema.
-const connection = connections.data[0]
-if (!connection) throw new Error('Connect this customer\'s Slack account first')
+const connection = connections.data.find((candidate) => candidate.status === 'ACTIVE')
+if (!connection) throw new Error('Connect or reconnect this customer\'s Slack account first')
 
 const output = await inboxfm.execute({
   integration,

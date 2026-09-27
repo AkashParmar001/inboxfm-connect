@@ -18,7 +18,8 @@ npm pack --workspace=@inboxfm-connect/sdk --pack-destination /absolute/path/to/y
 In your consuming application, install the tarball emitted by `npm pack` (use its actual filename):
 
 ```bash
-npm install ./inboxfm-connect-sdk-0.2.0.tgz
+# Replace VERSION with the version in the filename emitted by npm pack.
+npm install ./inboxfm-connect-sdk-VERSION.tgz
 ```
 
 The repository's runnable quickstart uses the workspace directly. After a public release is confirmed, `npm install @inboxfm-connect/sdk` becomes the normal consumer path. Track release readiness in [#32](https://github.com/Mihir-Rabari/inboxfm-connect/issues/32).
@@ -38,6 +39,9 @@ const session = await inboxfm.createConnectSession({ externalUserId: 'user_42', 
 // 2. Once they have, find their connection (paginate with `cursor`/`limit`).
 const { data } = await inboxfm.listConnections({ externalUserId: 'user_42', pieceName: '@inboxfm-connect/piece-slack' })
 
+const connection = data.find((candidate) => candidate.status === 'ACTIVE')
+if (!connection) throw new Error('Connect or reconnect this customer before executing a tool')
+
 // 3. Discover the integration's tools and their inputs.
 const tools = await inboxfm.listTools({ integration: '@inboxfm-connect/piece-slack' })
 
@@ -45,7 +49,7 @@ const tools = await inboxfm.listTools({ integration: '@inboxfm-connect/piece-sla
 const output = await inboxfm.execute({
   integration: '@inboxfm-connect/piece-slack',
   tool: 'send_channel_message',
-  connectionId: data[0].id,
+  connectionId: connection.id,
   input: { channel: 'C123', text: 'Hello', sendAsBot: true },
 })
 ```
