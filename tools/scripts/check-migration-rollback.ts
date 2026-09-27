@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process'
 import semver from 'semver'
 import { Migration } from '../../packages/server/api/src/app/database/migration'
+import { ciBase } from '../ci/resolve-base.mjs'
 
 const MIGRATION_DIRS = [
     'packages/server/api/src/app/database/migration/postgres',
@@ -9,10 +10,10 @@ const MIGRATION_DIRS = [
 ]
 
 function getChangedMigrationFiles(): string[] {
-    const base = process.env.CI_BASE_SHA ?? `origin/${process.env.GITHUB_BASE_REF ?? 'dev'}`
+    const base = ciBase.resolve({ candidate: process.env.CI_BASE_SHA ?? `origin/${process.env.GITHUB_BASE_REF ?? 'dev'}` })
     const diffOutput = execFileSync(
         'git',
-        ['diff', '--name-only', '--diff-filter=A', `${base}...HEAD`],
+        base ? ['diff', '--name-only', '--diff-filter=A', `${base}...HEAD`] : ['ls-files'],
         { encoding: 'utf-8' },
     ).trim()
 

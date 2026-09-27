@@ -1,12 +1,14 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { integrationImpact } from './integration-impact.mjs'
+import { ciBase } from './resolve-base.mjs'
 
-const base = process.env.CI_BASE_SHA || 'origin/dev'
-const changed = execFileSync('git', ['diff', '--name-only', '-z', `${base}...HEAD`], { encoding: 'utf8' }).split('\0').filter(Boolean)
-const packages = execFileSync('git', ['ls-files', 'packages/integrations/**/package.json'], { encoding: 'utf8' }).trim().split('\n')
+const base = ciBase.resolve()
+const changed = execFileSync('git', base ? ['diff', '--name-only', '-z', `${base}...HEAD`] : ['ls-files', '-z'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }).split('\0').filter(Boolean)
+const packages = execFileSync('git', ['ls-files', 'packages/integrations/**/package.json'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
-const previousManifest = JSON.parse(execFileSync('git', ['show', `${base}:package.json`], { encoding: 'utf8' }))
+const hasPreviousManifest = base && spawnSync('git', ['cat-file', '-e', `${base}:package.json`], { stdio: 'ignore' }).status === 0
+const previousManifest = hasPreviousManifest ? JSON.parse(execFileSync('git', ['show', `${base}:package.json`], { encoding: 'utf8' })) : {}
 const impact = integrationImpact.select({ changed, packages, manifest, previousManifest })
 
 for (const [task, files] of Object.entries(impact)) {

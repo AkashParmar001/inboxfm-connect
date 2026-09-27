@@ -25,7 +25,7 @@ const runtime = new HeadlessRuntime<AppConnectionSchema>({
         ENVIRONMENT: system.get(AppSystemProp.ENVIRONMENT) ?? '',
         REUSE_SANDBOX: undefined,
         SANDBOX_PROPAGATED_ENV_VARS: [],
-        SSRF_ALLOW_LIST: [],
+        SSRF_ALLOW_LIST: (system.get(AppSystemProp.SSRF_ALLOW_LIST) ?? '').split(',').map(value => value.trim()).filter(Boolean),
         WORKER_GROUP_ID: 'headless',
         PROJECT_WORKER: false,
     }),

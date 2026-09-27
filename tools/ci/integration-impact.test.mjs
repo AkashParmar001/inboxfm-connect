@@ -14,6 +14,10 @@ test('a changed integration is linted and built', () => {
     assert.deepEqual(result, { lint: [packages[1]], build: [packages[1]] })
 })
 
+test('an integration manifest change is linted and built', () => {
+    assert.deepEqual(select({ changed: [packages[0]] }), { lint: [packages[0]], build: [packages[0]] })
+})
+
 for (const file of ['packages/core/utils/src/index.ts', 'packages/core/execution/src/index.ts', 'packages/integrations/framework/src/index.ts', 'packages/integrations/common/src/index.ts', 'bun.lock', 'tsconfig.base.json']) {
     test(`shared dependency change builds all integrations: ${file}`, () => {
         assert.deepEqual(select({ changed: [file] }), { lint: [], build: packages })

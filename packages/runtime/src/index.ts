@@ -4,6 +4,7 @@ import { AppConnection, EngineOperationType, PackageType, PiecePackage, PieceTyp
 
 export class HeadlessRuntime<TConnection extends RuntimeConnection> {
     private sandboxRuntime: ReturnType<typeof createSandboxRuntime>
+    private executionTail: Promise<void> = Promise.resolve()
 
     constructor(private config: RuntimeConfig<TConnection>) {
         this.sandboxRuntime = createSandboxRuntime({
@@ -32,7 +33,7 @@ export class HeadlessRuntime<TConnection extends RuntimeConnection> {
             pieceVersion: connection.pieceVersion,
         }
 
-        const result = await this.sandboxRuntime.execute({
+        const result = await this.executeSandbox({
             workerIndex: 0,
             log: this.config.log,
             operationType: EngineOperationType.EXECUTE_TOOL,
@@ -90,7 +91,7 @@ export class HeadlessRuntime<TConnection extends RuntimeConnection> {
             pieceVersion: params.version || 'latest',
         }
 
-        const result = await this.sandboxRuntime.execute({
+        const result = await this.executeSandbox({
             workerIndex: 0,
             log: this.config.log,
             operationType: EngineOperationType.EXTRACT_PIECE_METADATA,
@@ -128,6 +129,12 @@ export class HeadlessRuntime<TConnection extends RuntimeConnection> {
             throw new Error(`Connection not found: ${params.connectionId}`)
         }
         return this.config.decryptAndRefresh({ connection })
+    }
+
+    private executeSandbox(params: Parameters<ReturnType<typeof createSandboxRuntime>['execute']>[0]): ReturnType<ReturnType<typeof createSandboxRuntime>['execute']> {
+        const execution = this.executionTail.then(() => this.sandboxRuntime.execute(params))
+        this.executionTail = execution.then(() => undefined, () => undefined)
+        return execution
     }
 }
 

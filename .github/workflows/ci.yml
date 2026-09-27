@@ -111,6 +111,7 @@ jobs:
         ports:
           - 5432:5432
     env:
+      AP_EDITION: ce
       AP_DB_TYPE: POSTGRES
       AP_POSTGRES_HOST: localhost
       AP_POSTGRES_PORT: '5432'

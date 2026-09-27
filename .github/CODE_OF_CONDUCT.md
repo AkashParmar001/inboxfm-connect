@@ -73,7 +73,7 @@ If a community member engages in unacceptable behavior, we may take any action d
 ## 7. Reporting Guidelines
 If you are subject to or witness unacceptable behavior, or have any other concerns, please notify us as soon as possible by contacting an Inboxfm Connect maintainer through an available private community channel. The [repository maintainer profile](https://github.com/Mihir-Rabari) lists available contact options. Do not post sensitive reports publicly.
 
-Processes for dealing with breaches of the Code of Conduct can be found in this policy.
+Maintainers review reports privately, request the details needed to understand the incident, and consider immediate measures to protect participants. They choose a response under section 6 and communicate the outcome to the people involved as appropriate. A maintainer with a conflict of interest should ask another maintainer to handle the report where possible. Appeals follow section 8.
 
 ## 8. Addressing Grievances
 Only permanent resolutions (such as bans) may be appealed. To appeal a decision, contact the repository maintainer through an available private channel with your appeal. A maintainer who was not involved in the original decision should review the situation where possible.
