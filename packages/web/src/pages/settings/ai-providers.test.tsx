@@ -10,10 +10,12 @@ import { stubApi } from '@/test/api-stub'
 import { testProject, testUser } from '@/test/fixtures/api-keys'
 import { createTestQueryClient, mount, waitFor } from '@/test/test-utils'
 import type {
+  CloudflareGatewayProviderConfig,
   CreateAIProviderRequest,
   OpenAICompatibleProviderConfig,
   UpdateAIProviderRequest,
 } from '@inboxfm-connect/shared'
+import { toast } from 'sonner'
 import { AIProviderModelType, AIProviderName } from '@/lib/api/ai-providers'
 
 const PROJECT = testProject()
@@ -514,5 +516,104 @@ describe('AI Provider management in Settings page', () => {
       document.body.textContent?.includes('Both Access Key ID and Secret Access Key must be provided') === true
     )
     expect(document.body.textContent).toContain('Both Access Key ID and Secret Access Key must be provided')
+  })
+
+  it('preserves existing models, vertexProject, and vertexRegion when editing Cloudflare Gateway provider', async () => {
+    let updatePayload: UpdateAIProviderRequest | null = null
+    const cfProvider = {
+      id: 'prov_cf',
+      name: 'Edge Gateway',
+      provider: AIProviderName.CLOUDFLARE_GATEWAY,
+      config: {
+        accountId: 'acc-12345',
+        gatewayId: 'gw-67890',
+        models: [{ modelId: 'llama-3-8b', modelName: 'Llama 3 8B', modelType: AIProviderModelType.TEXT }],
+        vertexProject: 'my-gcp-project',
+        vertexRegion: 'us-central1',
+      },
+      enabledForChat: false,
+    }
+
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: defaultBilling }) },
+      { match: AI_PROVIDERS_MATCH, respond: () => ({ body: [cfProvider] }) },
+      {
+        match: AI_PROVIDER_UPDATE_MATCH,
+        respond: (_url, _init, body) => {
+          updatePayload = body as UpdateAIProviderRequest
+          return { status: 200, body: {} }
+        },
+      },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Edge Gateway') === true)
+
+    const editBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Edit Edge Gateway"]')
+    expect(editBtn).not.toBeNull()
+
+    await act(async () => {
+      editBtn?.click()
+    })
+
+    await waitFor(() => document.body.textContent?.includes('Edit AI Provider — Edge Gateway') === true)
+
+    await setInputValue('input[placeholder="e.g. OpenAI Production"]', 'Edge Gateway Renamed')
+
+    const saveBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.trim() === 'Save Changes'
+    )
+    expect(saveBtn).toBeDefined()
+
+    await act(async () => {
+      saveBtn?.click()
+    })
+
+    await waitFor(() => updatePayload !== null)
+    const payload = updatePayload as unknown as UpdateAIProviderRequest
+    expect(payload.displayName).toBe('Edge Gateway Renamed')
+    const config = payload.config as CloudflareGatewayProviderConfig
+    expect(config.accountId).toBe('acc-12345')
+    expect(config.gatewayId).toBe('gw-67890')
+    expect(config.models).toEqual([
+      { modelId: 'llama-3-8b', modelName: 'Llama 3 8B', modelType: AIProviderModelType.TEXT },
+    ])
+    expect(config.vertexProject).toBe('my-gcp-project')
+    expect(config.vertexRegion).toBe('us-central1')
+  })
+
+  it('displays error toast when chat default toggle fails', async () => {
+    const toastErrorSpy = vi.spyOn(toast, 'error')
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ body: defaultBilling }) },
+      { match: AI_PROVIDERS_MATCH, respond: () => ({ body: sampleProviders }) },
+      {
+        match: AI_PROVIDER_UPDATE_MATCH,
+        respond: () => ({ status: 500, body: { message: 'Database connection failed' } }),
+      },
+    ])
+
+    const container = renderSettingsPage()
+    await waitFor(() => container.textContent?.includes('Anthropic Claude') === true)
+
+    const toggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Toggle chat for Anthropic Claude"]'
+    )
+    expect(toggle).not.toBeNull()
+
+    await act(async () => {
+      toggle?.click()
+    })
+
+    await waitFor(() => toastErrorSpy.mock.calls.length > 0)
+    expect(toastErrorSpy).toHaveBeenCalledWith(
+      'Failed to update chat provider setting',
+      expect.objectContaining({
+        description: expect.any(String),
+      })
+    )
+    toastErrorSpy.mockRestore()
   })
 })

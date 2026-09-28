@@ -71,6 +71,9 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    include: ['@inboxfm-connect/shared'],
+  },
   build: {
     outDir: '../../dist/packages/web',
     emptyOutDir: true,

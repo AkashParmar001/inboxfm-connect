@@ -3,7 +3,7 @@ import type {
   CreateAIProviderRequest,
   UpdateAIProviderRequest,
 } from '@inboxfm-connect/shared'
-import { AIProviderName, aiProvidersApi } from '../api/ai-providers'
+import { type AIProviderName, aiProvidersApi } from '../api/ai-providers'
 import { apiKeysApi } from '../api/api-keys'
 import { automationsApi } from '../api/automations'
 import { billingApi } from '../api/billing'
@@ -476,13 +476,14 @@ export function useAIProvidersQuery() {
   return useQuery({
     queryKey: ['ai-providers'],
     queryFn: () => aiProvidersApi.list(),
+    meta: { showErrorToast: true },
   })
 }
 
 export function useAIProviderModelsQuery(provider?: AIProviderName, enabled = true) {
   return useQuery({
     queryKey: ['ai-provider-models', provider],
-    queryFn: () => aiProvidersApi.listModels(provider!),
+    queryFn: () => (provider ? aiProvidersApi.listModels(provider) : Promise.resolve([])),
     enabled: !!provider && enabled,
     staleTime: 60_000,
   })
