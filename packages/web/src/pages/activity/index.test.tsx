@@ -284,4 +284,29 @@ describe('Activity page', () => {
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(recordedExecution.id)
   })
+
+  it('labels the fetch cap as a row limit and flags when it is reached', async () => {
+    const rows = Array.from({ length: 10 }, (_, index) => ({ ...recordedExecution, id: `exec_${index}` }))
+    stubApi([executionsListRoute(rows)])
+    renderActivity()
+
+    await waitFor(() => document.querySelectorAll('[data-testid="execution-row"]').length === 10)
+
+    const label = document.querySelector('label[for="activity-limit-filter"]')
+    expect(label?.textContent).toBe('Rows')
+    expect(bodyText()).not.toContain('Per page')
+
+    const count = document.querySelector('[data-testid="activity-count"]')?.textContent ?? ''
+    expect(count).toContain('10 executions')
+    expect(count).toContain('row limit 10 reached')
+  })
+
+  it('omits the row limit note when fewer rows than the limit are returned', async () => {
+    stubApi([executionsListRoute([recordedExecution])])
+    renderActivity()
+
+    await waitFor(() => document.querySelector('[data-testid="activity-count"]') !== null)
+
+    expect(document.querySelector('[data-testid="activity-count"]')?.textContent).toBe('1 execution')
+  })
 })

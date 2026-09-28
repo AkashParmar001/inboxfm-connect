@@ -200,4 +200,85 @@ describe('Connections page', () => {
     expect(text).not.toContain('client_secret')
     expect(text).not.toContain('refresh_token')
   }, 15000)
+
+  function integrationsRoute(): StubRoute {
+    return {
+      match: (url) => url.pathname === '/api/v1/integrations',
+      respond: () => ({ status: 200, body: seekPage([githubSummary(), slackSummary()]) }),
+    }
+  }
+
+  function cursorRoute(cursor: string | undefined, body: unknown): StubRoute {
+    return {
+      match: (url) => LIST_MATCH(url) && (url.searchParams.get('cursor') ?? undefined) === cursor,
+      respond: () => ({ status: 200, body }),
+    }
+  }
+
+  it('pages through connections with the response cursor and reports truncation', async () => {
+    const pageOne = { data: [githubConnection('conn_1', 'Mihir GitHub')], next: 'cursor-2', previous: null }
+    const pageTwo = { data: [slackConnection('conn_2', 'VedLabs Workspace')], next: null, previous: 'cursor-1' }
+    const { calls } = stubApi([
+      cursorRoute(undefined, pageOne),
+      cursorRoute('cursor-2', pageTwo),
+      cursorRoute('cursor-1', pageOne),
+      integrationsRoute(),
+    ])
+    const container = renderConnections()
+
+    await waitFor(() => container.textContent?.includes('Mihir GitHub') === true)
+
+    const count = () => container.querySelector('[data-testid="connections-count"]')?.textContent ?? ''
+    expect(count()).toContain('Showing 1 connection')
+    expect(count()).toContain('more available')
+
+    const previousButton = container.querySelector<HTMLButtonElement>('button[aria-label="Previous connections page"]')
+    const nextButton = container.querySelector<HTMLButtonElement>('button[aria-label="Next connections page"]')
+    expect(previousButton?.disabled).toBe(true)
+    expect(nextButton?.disabled).toBe(false)
+
+    await act(async () => {
+      nextButton?.click()
+    })
+    await waitFor(() => container.textContent?.includes('VedLabs Workspace') === true)
+
+    expect(calls.some((call) => call.includes('cursor=cursor-2'))).toBe(true)
+    expect(container.textContent).not.toContain('Mihir GitHub')
+    expect(count()).not.toContain('more available')
+    expect(count()).toContain('Showing 1 connection')
+
+    const previousOnPageTwo = container.querySelector<HTMLButtonElement>('button[aria-label="Previous connections page"]')
+    expect(previousOnPageTwo?.disabled).toBe(false)
+    await act(async () => {
+      previousOnPageTwo?.click()
+    })
+    await waitFor(() => container.textContent?.includes('Mihir GitHub') === true)
+
+    expect(calls.some((call) => call.includes('cursor=cursor-1'))).toBe(true)
+    expect(container.textContent).not.toContain('VedLabs Workspace')
+  }, 15000)
+
+  it('offers a way back instead of the empty state when a cursor page has no rows', async () => {
+    const pageOne = { data: [githubConnection('conn_1', 'Mihir GitHub')], next: 'cursor-2', previous: null }
+    stubApi([
+      cursorRoute(undefined, pageOne),
+      cursorRoute('cursor-2', { data: [], next: null, previous: 'cursor-1' }),
+      cursorRoute('cursor-1', pageOne),
+      integrationsRoute(),
+    ])
+    const container = renderConnections()
+
+    await waitFor(() => container.textContent?.includes('Mihir GitHub') === true)
+
+    const nextButton = container.querySelector<HTMLButtonElement>('button[aria-label="Next connections page"]')
+    await act(async () => {
+      nextButton?.click()
+    })
+    await waitFor(() => container.textContent?.includes('No connections on this page.') === true)
+
+    expect(container.textContent).not.toContain('No connections yet')
+    expect(container.querySelector('[data-testid="connections-pagination"]')).not.toBeNull()
+    const previousButton = container.querySelector<HTMLButtonElement>('button[aria-label="Previous connections page"]')
+    expect(previousButton?.disabled).toBe(false)
+  }, 15000)
 })

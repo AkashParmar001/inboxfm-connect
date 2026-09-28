@@ -226,7 +226,7 @@ export default function ActivityPage() {
 
         <div className="flex items-center gap-2">
           <label htmlFor="activity-limit-filter" className="text-xs font-semibold text-muted-foreground">
-            Per page
+            Rows
           </label>
           <select
             id="activity-limit-filter"
@@ -247,6 +247,7 @@ export default function ActivityPage() {
       {!executionsQuery.isLoading && !executionsQuery.isError && (
         <p className="text-xs text-muted-foreground" aria-live="polite" data-testid="activity-count">
           {executions.length} execution{executions.length === 1 ? '' : 's'}
+          {executions.length === filters.limit ? ` — row limit ${filters.limit} reached` : ''}
         </p>
       )}
 

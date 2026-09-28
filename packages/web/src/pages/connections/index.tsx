@@ -18,6 +18,9 @@ import { connectionFormat } from '@/lib/utils/connection-format'
 
 const COLUMNS = ['Integration', 'Connection name', 'External user', 'Auth type', 'Status', 'Created', 'Actions'] as const
 
+/** Page size for the connections table; the response `next`/`previous` cursors drive paging beyond it. */
+const PAGE_SIZE = 100
+
 function usePieceLookup() {
   const { data: pieces } = useIntegrations()
   return useMemo(() => {
@@ -39,14 +42,57 @@ function ListSkeleton() {
   )
 }
 
+interface PaginationFooterProps {
+  count: number
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+  isFetching: boolean
+  onNext: () => void
+  onPrevious: () => void
+}
+
+function PaginationFooter({ count, hasNextPage, hasPreviousPage, isFetching, onNext, onPrevious }: PaginationFooterProps) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3" data-testid="connections-pagination">
+      <p className="text-xs text-muted-foreground" aria-live="polite" data-testid="connections-count">
+        Showing {count} connection{count === 1 ? '' : 's'}
+        {hasNextPage ? ' — more available' : ''}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={onPrevious}
+          disabled={!hasPreviousPage || isFetching}
+          aria-label="Previous connections page"
+        >
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={onNext}
+          disabled={!hasNextPage || isFetching}
+          aria-label="Next connections page"
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export default function ConnectionsPage() {
   const navigate = useNavigate()
   const pieceLookup = usePieceLookup()
-  const { data, isLoading, isError, refetch } = useConnectionsQuery({ limit: 100 })
+  const [cursor, setCursor] = useState<string | undefined>(undefined)
+  const { data, isLoading, isError, isFetching, refetch } = useConnectionsQuery({ limit: PAGE_SIZE, cursor })
   const deleteConnection = useDeleteConnection()
   const [deleteTarget, setDeleteTarget] = useState<AppConnection | null>(null)
 
   const connections = data?.data ?? []
+  const hasNextPage = Boolean(data?.next)
+  const hasPreviousPage = Boolean(data?.previous)
 
   const handleDelete = () => {
     if (!deleteTarget) return
@@ -93,7 +139,7 @@ export default function ConnectionsPage() {
           description="The connection list could not be loaded. Check that you are signed in and try again."
           onRetry={() => void refetch()}
         />
-      ) : connections.length === 0 ? (
+      ) : connections.length === 0 && cursor === undefined ? (
         <EmptyState
           icon={KeyRound}
           title="No connections yet"
@@ -101,6 +147,10 @@ export default function ConnectionsPage() {
           actionLabel="Browse Integrations"
           onAction={() => navigate('/integrations')}
         />
+      ) : connections.length === 0 ? (
+        <p className="text-xs text-muted-foreground" data-testid="connections-page-empty">
+          No connections on this page.
+        </p>
       ) : (
         <Card className="overflow-hidden rounded-xl shadow-xs">
           <div className="overflow-x-auto">
@@ -188,6 +238,17 @@ export default function ConnectionsPage() {
             </table>
           </div>
         </Card>
+      )}
+
+      {!isLoading && !isError && (connections.length > 0 || cursor !== undefined) && (
+        <PaginationFooter
+          count={connections.length}
+          hasNextPage={hasNextPage}
+          hasPreviousPage={hasPreviousPage}
+          isFetching={isFetching}
+          onNext={() => setCursor(data?.next ?? undefined)}
+          onPrevious={() => setCursor(data?.previous ?? undefined)}
+        />
       )}
 
       <DeleteConnectionDialog

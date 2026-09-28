@@ -64,6 +64,9 @@ export function useConnectionsQuery(params?: ConnectionsListParams) {
   return useQuery({
     queryKey: ['connections', params ?? {}, projectId],
     queryFn: () => connectionsApi.list(params),
+    // Cursor paging swaps one page for another; keep the previous rows on screen
+    // instead of flashing the loading skeleton between pages.
+    placeholderData: keepPreviousData,
     meta: { showErrorToast: true, showErrorDialog: true },
   })
 }
