@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { applyFunctionToValuesSync, isString } from '@inboxfm-connect/core-utils'
+import { applyFunctionToValuesSync, extractMustacheTokens, isString } from '@inboxfm-connect/core-utils'
 import { FlowAction } from '../actions/action'
 import { FlowVersion } from '../flow-version'
 import { flowStructureUtil } from '../util/flow-structure-util'
@@ -24,26 +24,24 @@ type ReplaceOldStepNameWithNewOneProps = {
     newStepName: string
 }
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function replaceOldStepNameWithNewOne({
     input,
     oldStepName,
     newStepName,
 }: ReplaceOldStepNameWithNewOneProps): string {
-    // TODO: replace this naive /{{(.*?)}}/g tokenizer with `extractMustacheTokens`
-    // from @inboxfm-connect/shared. The lazy regex stops at the first `}}`, so a token
-    // whose content contains `}}` (e.g. a string literal) is truncated and the
-    // trailing step name is not renamed on duplicate/paste. Swap deferred — needs
-    // duplicate/paste re-testing in the builder before landing.
-    const regex = /{{(.*?)}}/g // Regular expression to match strings inside {{ }}
-    return input.replace(regex, (match, content) => {
-        // Replace the content inside {{ }} using the provided function
-        const replacedContent = content.replaceAll(
-            new RegExp(`\\b${oldStepName}\\b`, 'g'),
-            `${newStepName}`,
-        )
-        // Reconstruct the {{ }} with the replaced content
-        return `{{${replacedContent}}}`
-    })
+    const stepNamePattern = new RegExp(`\\b${escapeRegExp(oldStepName)}\\b`, 'g')
+    let cursor = 0
+    let rewritten = ''
+    for (const token of extractMustacheTokens(input)) {
+        rewritten += input.slice(cursor, token.index)
+        rewritten += `{{${token.inner.replace(stepNamePattern, () => newStepName)}}}`
+        cursor = token.index + token.token.length
+    }
+    return rewritten + input.slice(cursor)
 }
 
 
