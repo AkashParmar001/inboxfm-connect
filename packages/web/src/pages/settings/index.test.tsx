@@ -309,4 +309,41 @@ describe('Settings page', () => {
     expect(container.textContent?.includes('Upgrade to Paid Tier')).toBe(false)
     expect(container.textContent?.includes('Manage in Stripe')).toBe(false)
   })
+
+  it('shows neutral placeholders instead of fabricated identity data', async () => {
+    signIn({ user: testUser({ email: '', platformRole: undefined }) })
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ status: 500, body: { message: 'Unavailable' } }) },
+    ])
+
+    const container = renderSettingsPage()
+
+    await waitFor(() => container.textContent?.includes('Developer Identity') === true)
+
+    const text = container.textContent || ''
+    expect(text).not.toContain('InboxFM Main Project')
+    expect(text).not.toContain('proj_default')
+    expect(text).not.toContain('developer@inboxfm.local')
+    expect(text).not.toContain('ADMIN')
+    expect(text).not.toContain('Inspect Security Policies')
+
+    const placeholders = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[placeholder="—"]')
+    )
+    expect(placeholders.length).toBe(4)
+    placeholders.forEach((input) => expect(input.value).toBe(''))
+  })
+
+  it('does not offer a security policies action', async () => {
+    stubApi([
+      { match: PROJECTS_MATCH, respond: () => ({ body: { data: [PROJECT] } }) },
+      { match: BILLING_INFO_MATCH, respond: () => ({ status: 500, body: { message: 'Unavailable' } }) },
+    ])
+
+    const container = renderSettingsPage()
+
+    await waitFor(() => container.textContent?.includes('Security') === true)
+    expect(container.textContent).not.toContain('Inspect Security Policies')
+  })
 })

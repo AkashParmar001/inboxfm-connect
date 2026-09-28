@@ -177,11 +177,11 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">Project Display Name</label>
-              <Input defaultValue={currentProject?.displayName || 'InboxFM Main Project'} readOnly />
+              <Input value={currentProject?.displayName ?? ''} readOnly placeholder="—" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">Project ID</label>
-              <Input defaultValue={currentProject?.id || 'proj_default'} readOnly className="font-mono text-xs" />
+              <Input value={currentProject?.id ?? ''} readOnly placeholder="—" className="font-mono text-xs" />
             </div>
           </CardContent>
         </Card>
@@ -200,11 +200,11 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">Email Address</label>
-              <Input defaultValue={user?.email || 'developer@inboxfm.local'} readOnly />
+              <Input value={user?.email ?? ''} readOnly placeholder="—" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground">Platform Role</label>
-              <Input defaultValue={user?.platformRole || 'ADMIN'} readOnly />
+              <Input value={user?.platformRole ?? ''} readOnly placeholder="—" />
             </div>
           </CardContent>
         </Card>
@@ -273,9 +273,6 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground leading-relaxed">
               Every query and execution is isolated by <code className="font-mono text-primary font-bold">x-project-id</code> and validated through Fastify security middleware.
             </p>
-            <Button size="sm" variant="outline" className="text-xs" onClick={() => toast.success('Security policies are active.')}>
-              Inspect Security Policies
-            </Button>
           </CardContent>
         </Card>
       </div>

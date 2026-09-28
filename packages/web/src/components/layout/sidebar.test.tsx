@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Sidebar } from './sidebar'
-import { mountAt } from '@/test/test-utils'
+import { apiClient } from '@/lib/api/client'
+import { stubApi } from '@/test/api-stub'
+import { testProject, testUser } from '@/test/fixtures/api-keys'
+import { mountAt, waitFor } from '@/test/test-utils'
 
 const CORE_ITEMS = [
   'Overview',
@@ -48,10 +51,32 @@ describe('Sidebar', () => {
     expect(overviewLink?.className).not.toContain('text-primary')
   })
 
-  it('shows the current project from the auth context', () => {
+  it('shows a neutral project state when the auth context has no project', () => {
     const container = mountAt(<Sidebar />, { route: '/' })
 
-    expect(container.textContent).toContain('InboxFM Main Project')
+    expect(container.textContent).toContain('No project')
+    expect(container.textContent).not.toContain('InboxFM Main Project')
+    expect(container.textContent).not.toContain('developer@inboxfm.local')
     expect(container.textContent).toContain('Developer Console')
+  })
+
+  it('shows the real project and email from the auth context when available', async () => {
+    const project = testProject({ id: 'proj_acme', displayName: 'Acme Ops' })
+    apiClient.setToken('test-token')
+    apiClient.setProjectId(project.id)
+    localStorage.setItem('ap-user', JSON.stringify(testUser({ email: 'dev@example.com' })))
+    stubApi([
+      {
+        match: (url, method) => url.pathname === '/api/v1/projects' && method === 'GET',
+        respond: () => ({ body: { data: [project] } }),
+      },
+    ])
+
+    const container = mountAt(<Sidebar />, { route: '/' })
+
+    await waitFor(() => container.textContent?.includes('Acme Ops') === true)
+    expect(container.textContent).toContain('dev@example.com')
+    expect(container.textContent).not.toContain('No project')
+    expect(container.textContent).not.toContain('developer@inboxfm.local')
   })
 })
