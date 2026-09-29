@@ -3,7 +3,7 @@ title: "Interface Design"
 icon: "palette"
 ---
 
-This page is a collection of resources for interface design. It's a work in progress and will be updated as we go.
+This page is the design-system contract for `packages/web` (developer console and dashboard). It documents what exists in code — tokens, primitives, and state rules — so new pages compose the system instead of adding one-offs. Package-local working notes live in `packages/web/DESIGN_SYSTEM.md`; this page is the reviewer-checkable source of truth.
 
 ## Color Palette
 
@@ -15,13 +15,171 @@ The palette includes:
 - Secondary colors for supporting elements
 - Semantic colors for status and feedback (success, warning, destructive)
 
+## How theming works
+
+There is no `tailwind.config.*`. The theme is CSS-variable driven in `packages/web/src/styles/globals.css` (Tailwind v4):
+
+1. `@theme inline` (lines 3–43) maps theme tokens to utilities: `--color-background` becomes `bg-background`, `text-background`, `border-background`, and so on; `--radius-lg` becomes `rounded-lg`.
+2. The values those tokens resolve to live in `:root` (light, lines 46–82) and `.dark` (lines 84–118) as raw HSL channel triples consumed via `hsl(var(--...))`.
+3. `body` defaults to `font-size: 0.875rem` / `line-height: 1.25rem` (Inter), code elements to JetBrains Mono.
+
+Rule: product code consumes **theme tokens via utilities only** (`bg-card`, `text-muted-foreground`, `rounded-md`). It must not read the base values (`var(--background)`, `hsl(var(--muted))`) directly — those are internal feed-stock for the theme. Known exceptions, both cases where no theme utility expresses the value: `accent-[var(--primary)]` on native checkboxes in five form controls, and one `radial-gradient` in `welcome-hero.tsx`. New code must not add further direct reads.
+
+## Token reference
+
+75 custom-property declarations in total: 28 theme tokens (public API), 24 base values (internal), and 23 dark-mode overrides (internal).
+
+### Public API — theme tokens (use these)
+
+All 28 are semantic (color roles and the radius scale); no token is component-scoped.
+
+| Token | Utility examples | Resolves to |
+|---|---|---|
+| `--color-background` | `bg-background` | `hsl(var(--background))` |
+| `--color-foreground` | `text-foreground` | `hsl(var(--foreground))` |
+| `--color-card` | `bg-card` | `hsl(var(--card))` |
+| `--color-card-foreground` | `text-card-foreground` | `hsl(var(--card-foreground))` |
+| `--color-popover` | `bg-popover` | `hsl(var(--popover))` |
+| `--color-popover-foreground` | `text-popover-foreground` | `hsl(var(--popover-foreground))` |
+| `--color-primary` | `bg-primary`, `text-primary` | `hsl(var(--primary))` |
+| `--color-primary-foreground` | `text-primary-foreground` | `hsl(var(--primary-foreground))` |
+| `--color-secondary` | `bg-secondary` | `hsl(var(--secondary))` |
+| `--color-secondary-foreground` | `text-secondary-foreground` | `hsl(var(--secondary-foreground))` |
+| `--color-muted` | `bg-muted`, `bg-muted/40` | `hsl(var(--muted))` |
+| `--color-muted-foreground` | `text-muted-foreground` | `hsl(var(--muted-foreground))` |
+| `--color-accent` | `bg-accent` | `hsl(var(--accent))` |
+| `--color-accent-foreground` | `text-accent-foreground` | `hsl(var(--accent-foreground))` |
+| `--color-destructive` | `bg-destructive`, `text-destructive`, `border-destructive/20` | `hsl(var(--destructive))` |
+| `--color-destructive-foreground` | `text-destructive-foreground` | `hsl(var(--destructive-foreground))` |
+| `--color-success` | `text-success` | `hsl(var(--success))` |
+| `--color-success-foreground` | `text-success-foreground` | `hsl(var(--success-foreground))` |
+| `--color-warning` | `text-warning` | `hsl(var(--warning))` |
+| `--color-warning-foreground` | `text-warning-foreground` | `hsl(var(--warning-foreground))` |
+| `--color-border` | `border-border` | `hsl(var(--border))` |
+| `--color-input` | `border-input` | `hsl(var(--input))` |
+| `--color-ring` | `ring-ring`, `focus-visible:ring-ring/50` | `hsl(var(--ring))` |
+| `--radius-sm` | `rounded-sm` | `calc(var(--radius) - 4px)` → 6px |
+| `--radius-md` | `rounded-md` | `calc(var(--radius) - 2px)` → 8px |
+| `--radius-lg` | `rounded-lg` | `var(--radius)` → 10px |
+| `--radius-xl` | `rounded-xl` | `calc(var(--radius) + 4px)` → 14px |
+| `--radius-2xl` | `rounded-2xl` | `calc(var(--radius) + 8px)` → 18px |
+
+### Internal — base values (do not consume directly)
+
+These feed the theme above. The dark theme is token-driven (a `.dark` override block), not hardcoded per component.
+
+| Token | Light (`:root`) | Dark (`.dark`) | Notes |
+|---|---|---|---|
+| `--background` | `0 0% 98%` | `0 0% 4%` | Viewport background |
+| `--foreground` | `0 0% 9%` | `0 0% 98%` | Default text |
+| `--card` | `0 0% 100%` | `0 0% 9%` | Cards, tables, surfaces |
+| `--card-foreground` | `0 0% 9%` | `0 0% 98%` | |
+| `--popover` | `0 0% 100%` | `0 0% 12%` | Popovers, menus |
+| `--popover-foreground` | `0 0% 9%` | `0 0% 98%` | |
+| `--primary` | `257 74% 57%` | `257 74% 57%` | Brand purple, identical in both modes |
+| `--primary-foreground` | `0 0% 100%` | `0 0% 100%` | |
+| `--secondary` | `0 0% 96%` | `0 0% 15%` | |
+| `--secondary-foreground` | `0 0% 9%` | `0 0% 98%` | |
+| `--muted` | `0 0% 96%` | `0 0% 15%` | Inactive pills, code blocks, hovered rows |
+| `--muted-foreground` | `0 0% 45%` | `0 0% 64%` | Secondary text |
+| `--accent` | `257 75% 95%` | `257 74% 20%` | |
+| `--accent-foreground` | `257 74% 35%` | `257 75% 85%` | |
+| `--destructive` | `350 89% 60%` | `351 95% 72%` | Danger, delete |
+| `--destructive-foreground` | `0 0% 98%` | `0 0% 9%` | |
+| `--success` | `160 84% 39%` | `160 60% 52%` | Success, active |
+| `--success-foreground` | `0 0% 100%` | `0 0% 9%` | |
+| `--warning` | `38 92% 50%` | `43 97% 56%` | Warning, caution |
+| `--warning-foreground` | `0 0% 9%` | `0 0% 9%` | |
+| `--border` | `0 0% 90%` | `0 0% 100% / 0.14` | 1px dividers; every element inherits it as `border-color` via `@layer base` |
+| `--input` | `0 0% 90%` | `0 0% 100% / 0.14` | Input borders |
+| `--ring` | `257 74% 57%` | `257 74% 57%` | Focus rings |
+| `--radius` | `0.625rem` | — (inherited) | Single source for all five radius tokens |
+
+## Type scale
+
+Base font is `0.875rem` / `1.25rem` (Inter). Measured usage across `packages/web/src` (152 files, tests excluded):
+
+| Class | Uses | Rule |
+|---|---|---|
+| `text-xs` (12px) | 298 | Secondary text, always with `text-muted-foreground` |
+| `text-sm` (14px) | 58 | Body text; the default for product UI |
+| `text-[11px]` | 109 | Code and identifiers, always with `font-mono` |
+| `text-base` (16px) | 9 | `DialogTitle` / `CardTitle` in wide dialogs, landing-page body |
+| `text-lg` (18px) | 2 | `DialogTitle` default size |
+| `text-xl` (20px) | 3 | Page titles only, with `font-bold tracking-tight` (`page-header.tsx`, `integration-header.tsx`) |
+| `text-2xl` (24px) | 5 | Marketing/landing pages only — never in product UI |
+
+Weights: `font-semibold` (136) for titles and labels, `font-medium` (85) for secondary emphasis, `font-bold` (68) for page titles. Headings are sentence case and use `tracking-tight`. Line height is inherited from the base `1.25rem` — explicit `leading-*` is almost never used (7 total uses).
+
+## Spacing rhythm
+
+A 4px grid. Measured dominant values:
+
+| Family | Rhythm (most used first) |
+|---|---|
+| `gap-*` | `gap-1` (123), `gap-2` (101), `gap-3` (41), `gap-4` (24) |
+| `space-y-*` | `space-y-1` (72), `space-y-4` (46), `space-y-2` (31), `space-y-6` (30), `space-y-3` (24) |
+| `p-*` | `p-3` (42), `p-4` (29), `p-5` (24) |
+| `px-*` | `px-4` (71), `px-2` (39), `px-3` (26) |
+| `py-*` | `py-3` (47), `py-2.5` (21), `py-0.5` / `py-1` / `py-1.5` |
+
+Rules: prefer `gap-*` over margins for layout; `space-y-*` for stacked sections; never use negative margins. `EmptyState` pads with `p-8`, `LoadingState` with `p-4`.
+
+## Borders, radius, shadows, icons
+
+- **Borders**: always 1px, always `border-border` (inherited as the default `border-color`, so a plain `border` class already matches the system).
+- **Radius**: `rounded-md` (111 uses) is the default; cards elevate to `rounded-lg` (38) / `rounded-xl` (61); pills and avatars use `rounded-full` (36); `rounded-sm` (8) is rare.
+- **Shadows**: `shadow-xs` (86 uses) is the standard card elevation; `shadow-md` / `shadow-lg` are exceptional (11 combined). No elevation jumps on hover.
+- **Icons**: Lucide only, 1.5–2px stroke, no emoji or unicode symbols. Measured sizes: `h-3.5 w-3.5` (120, buttons with `gap-1.5`), `h-4 w-4` (76, section headers and cards), `h-6 w-6` (6, empty-state illustrations inside a `h-12 w-12 rounded-full bg-muted/80` container).
+
+## Primitives
+
+All 18 files in `packages/web/src/components/ui/`. Only `button.tsx` and `badge.tsx` use `cva`; the rest are Radix primitives plus `className`, or explicit prop unions. Do not add one-off styled elements when a primitive covers the case.
+
+- **`avatar.tsx`** — `Avatar`, `AvatarImage`, `AvatarFallback`. Radix avatar, base `h-8 w-8 rounded-full`. No variants.
+- **`badge.tsx`** — `Badge`, `badgeVariants`. `variant`: `default` | `secondary` | `destructive` | `success` | `warning` | `outline` (default `default`). Optional `dot` (default `false`) renders a status dot whose color follows the variant.
+- **`button.tsx`** — `Button`, `buttonVariants`. `variant`: `default` | `destructive` | `outline` | `secondary` | `ghost` | `link` (default `default`). `size`: `default` | `xs` | `sm` | `lg` | `icon` | `icon-sm` | `icon-xs` (default `default`). `asChild` renders via Radix `Slot`. `loading` forces `disabled` and swaps children for a spinner plus the label — use it for every mutation button instead of hand-rolled spinners.
+- **`card.tsx`** — `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. Compose in that order; `CardTitle` renders `h3`, `CardDescription` renders `p`. No variants.
+- **`command.tsx`** — `Command`, `CommandDialog`, `CommandInput`, `CommandList`, `CommandEmpty`, `CommandGroup`, `CommandItem`, `CommandSeparator`, `CommandShortcut`. `CommandDialog` wraps `DialogContent` + `Command`; `CommandList` is capped at `max-h-[300px]`.
+- **`confirm-dialog.tsx`** — `ConfirmDialog`. Fully controlled (`open`, `onOpenChange`, `title`, `description`, `onConfirm` required). `variant`: `default` | `destructive`. Labels default to `Confirm` / `Cancel`; `loading` disables both buttons. Use for destructive confirmations instead of building a dialog by hand.
+- **`dialog.tsx`** — `Dialog`, `DialogTrigger`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogClose`, `DialogOverlay`, `DialogPortal`. Titles default to `text-lg font-semibold`; `DialogContent` auto-injects a close (X) button.
+- **`dropdown-menu.tsx`** — `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent` (`sideOffset = 4`), `DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuRadioGroup` / `DropdownMenuRadioItem`, `DropdownMenuLabel`, `DropdownMenuSeparator`, `DropdownMenuShortcut`, `DropdownMenuGroup`, `DropdownMenuSub` / `DropdownMenuSubTrigger` / `DropdownMenuSubContent`, `DropdownMenuPortal`. Optional `inset` adds `pl-8`.
+- **`empty-state.tsx`** — `EmptyState`. Props: `icon?`, `title` (required), `description?`, `actionLabel?`, `onAction?`, `actionIcon?`, plus `className`/`children`, no defaults. The action button renders only when **both** `actionLabel` and `onAction` are set.
+- **`error-state.tsx`** — `ErrorState`. Props: `title` (default `Something went wrong`), `description` (default `An error occurred while loading this data. Please try again.`), `onRetry?`, `className?`. The `Try again` button renders only when `onRetry` is provided.
+- **`input.tsx`** — `Input`. Boolean `thin` (default `false`): `thin` renders `h-8 py-1 text-xs`, default is `h-9`. Optional `icon` renders at `left-3` with `pl-9` on the input.
+- **`loading-state.tsx`** — `LoadingState`. Props: `rows` (default `4`), `className?`. Renders a header pair of skeletons plus `rows` full-width `h-12` skeleton rows.
+- **`separator.tsx`** — `Separator`. Radix separator, defaults `orientation = 'horizontal'`, `decorative = true`. Horizontal renders `h-[1px] w-full`, vertical `h-full w-[1px]`.
+- **`skeleton.tsx`** — `Skeleton`. A single pulsing `div` (`animate-pulse rounded-md bg-muted/70 dark:bg-muted/40`); takes only standard div props and `className` — size it at the call site to match the layout being loaded.
+- **`sonner.tsx`** — `Toaster`. Sonner toaster bound to the app theme. Do not mount a second toaster.
+- **`switch.tsx`** — `Switch`. Radix switch with `checked` / `defaultChecked` / `onCheckedChange`. No variants.
+- **`tabs.tsx`** — `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`. Manual `variant` on both `TabsList` and `TabsTrigger`: `default` | `underline` | `pills` (default `default`).
+- **`tooltip.tsx`** — `Tooltip`, `TooltipProvider`, `TooltipTrigger`, `TooltipContent` (`sideOffset = 4`). Wrap the app in `TooltipProvider`; control via `open` / `onOpenChange`.
+
+## State contract
+
+A page passes review when it follows these rules — they are the consistency #29 asks for, stated so a reviewer can check a page against them:
+
+1. **Initial load of a list or table** renders `<Skeleton>` rows sized to match the layout being loaded (the empty view must not be a generic spinner, and must not be blank).
+2. **Suspended lazy pages** render `<LoadingState rows={4} />` during the transition.
+3. **A successful fetch that returns nothing** renders `<EmptyState>` with an icon, an actionable title, a description of what will appear there, and a next-step action button. The button appears only when both `actionLabel` and `onAction` are provided — a label without a handler must not ship.
+4. **A failed fetch** renders `<ErrorState>` with a specific title and description, and passes `onRetry` so the `Try again` button appears. The button must not ship without a handler.
+5. **A mutation in flight** uses `<Button loading>`, which disables the button and shows the spinner with the label intact. Never swap children for a hand-rolled spinner.
+6. **Toasts** go through the single `Toaster`. Primary page-data queries (table rows, lists) set `meta: { showErrorToast: true, showErrorDialog: true }` so failures surface; auxiliary queries (metadata, single-item lookups, filter options) omit the flags and fail silently.
+7. **Navigation inside actions** (including empty-state actions) uses React Router `navigate()` or `<Link>`, never `window.location.href`.
+
+## Accessibility and interactions
+
+- Focus-visible uses `focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none`.
+- Hover states darken subtly (`hover:bg-muted/40`, `hover:border-primary/40`) — no 3D transform, scale, or elevation jumps on hover.
+- Disabled state is `opacity-50 pointer-events-none`.
+- Tables provide a screen-reader-only `<caption>`, dialogs provide `<DialogTitle>` (and `<VisuallyHidden>` where the title is visual-noise), and status messages use `role="status"` or `aria-live="polite"`.
 
 ## Tech Stack
 
 Our frontend is built with:
 
 - **React** - Core UI framework
-- **Shadcn UI** - Component library 
+- **Shadcn UI** - Component library
 - **Tailwind CSS** - Utility-first styling
 
 

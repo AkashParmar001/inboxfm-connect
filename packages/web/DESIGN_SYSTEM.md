@@ -1,5 +1,7 @@
 # Inboxfm Connect Design System (`packages/web`)
 
+> The reviewer-checkable design-system contract lives at `docs/handbook/product/interface-design.mdx`. This file holds package-local working notes.
+
 This document defines the visual foundation, component standards, and UX conventions for `packages/web` (developer console and dashboard), ensuring consistency across all screens.
 
 ---
