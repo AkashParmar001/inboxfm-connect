@@ -274,6 +274,31 @@ describe('Connect acceptance journey (issue #212)', () => {
             expect(response?.statusCode).toBe(StatusCodes.NOT_FOUND)
         })
 
+        it('refuses an explicit connectionId minted for a different piece', async () => {
+            const ctx = await createTestContext(app!)
+            const pieceA = await seedPiece({ platformId: ctx.platform.id })
+            const pieceB = await seedPiece({ platformId: ctx.platform.id })
+            const connection = createMockConnection({
+                platformId: ctx.platform.id,
+                projectIds: [ctx.project.id],
+                pieceName: pieceA.name,
+                pieceVersion: pieceA.version,
+                externalId: 'customer-one',
+            }, ctx.user.id)
+            await db.save('app_connection', connection)
+
+            const response = await execute(ctx, {
+                projectId: ctx.project.id,
+                integration: pieceB.name,
+                tool: 'noop',
+                connectionId: connection.id,
+                input: {},
+            })
+
+            expect(response?.statusCode).toBe(StatusCodes.NOT_FOUND)
+            expect(response!.json().code).toBe('ENTITY_NOT_FOUND')
+        })
+
         it('ignores projectId and externalUserId supplied in the redemption body — the session wins', async () => {
             const ctx = await createTestContext(app!)
             const apiKey = await createConsumer(ctx)
@@ -367,8 +392,13 @@ describe('Connect acceptance journey (issue #212)', () => {
                 redeem({ token, body }),
             ])
 
-            const statuses = [first!.statusCode, second!.statusCode]
-            expect(statuses).toContain(StatusCodes.CREATED)
+            const statuses = [first!.statusCode, second!.statusCode].sort((a, b) => a - b)
+            expect(statuses).toEqual([StatusCodes.CREATED, StatusCodes.FORBIDDEN])
+
+            const connections = await db.findManyBy<{ id: string }>('app_connection', {
+                externalId: 'customer-race',
+            })
+            expect(connections).toHaveLength(1)
 
             const late = await redeem({ token, body })
             expect(late?.statusCode).toBe(StatusCodes.FORBIDDEN)

@@ -95,7 +95,7 @@ export const executeController: FastifyPluginAsyncZod = async (fastify) => {
 
 async function resolveConnectionId({ projectId, platformId, connectionId, externalUserId, pieceName }: ResolveConnectionIdParams): Promise<string> {
     if (!isNil(connectionId)) {
-        return resolveExplicitConnectionId({ projectId, platformId, connectionId, externalUserId })
+        return resolveExplicitConnectionId({ projectId, platformId, connectionId, externalUserId, pieceName })
     }
     if (isNil(externalUserId)) {
         throw new ActivepiecesError({
@@ -128,10 +128,11 @@ async function resolveConnectionId({ projectId, platformId, connectionId, extern
 // the caller also names an externalUserId, pinned to that same customer, so a
 // connection id harvested from another tenant or another customer of this project
 // resolves to "not found" instead of reaching the runtime.
-async function resolveExplicitConnectionId({ projectId, platformId, connectionId, externalUserId }: ResolveExplicitConnectionIdParams): Promise<string> {
+async function resolveExplicitConnectionId({ projectId, platformId, connectionId, externalUserId, pieceName }: ResolveExplicitConnectionIdParams): Promise<string> {
     const connection = await appConnectionsRepo().findOneBy({
         id: connectionId,
         platformId,
+        pieceName,
         projectIds: ArrayContains([projectId]),
     })
     const belongsToAnotherCustomer = !isNil(connection) && !isNil(externalUserId) && connection.externalId !== externalUserId
@@ -160,6 +161,7 @@ type ResolveExplicitConnectionIdParams = {
     platformId: string
     connectionId: string
     externalUserId: string | undefined
+    pieceName: string
 }
 
 /**

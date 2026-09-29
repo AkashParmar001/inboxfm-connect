@@ -33,6 +33,7 @@ session is ever used to create a connection.
 | Operator has not configured that piece | `refuses to authorize a piece the operator has not configured an OAuth app for` | `POST /v1/connect-sessions/:token/oauth2/authorization-url` |
 | Two projects cannot substitute connection ids | `refuses to execute against a connection owned by another project` | `POST /v1/execute` |
 | Two customers cannot substitute connection ids | `refuses an explicit connectionId paired with a different customer id` | `POST /v1/execute` |
+| A connection cannot be reused across pieces | `refuses an explicit connectionId minted for a different piece` | `POST /v1/execute` |
 | `externalUserId` resolution stays within the customer | `refuses to resolve another customer connection through externalUserId` | `POST /v1/execute` |
 | Session token cannot be re-scoped by the caller | `ignores projectId and externalUserId supplied in the redemption body — the session wins` | `POST /v1/connect-sessions/:token/connections` |
 | Session expiry, repeated redemption, concurrent redemption | `expires a session once its TTL has passed`, `refuses to redeem a session twice`, `ends the journey with the session consumed exactly once when two redemptions race` | `POST /v1/connect-sessions/:token/connections` |
@@ -43,10 +44,11 @@ session is ever used to create a connection.
 `POST /v1/execute` accepts a `connectionId` **or** a `pieceName` +
 `externalUserId`:
 
-- An explicit `connectionId` is re-resolved against the authorized project and
-  platform before use. It is an opaque handle, not proof of ownership, so a
-  connection id from another project resolves to `ENTITY_NOT_FOUND` (404) and
-  never reaches the runtime.
+- An explicit `connectionId` is re-resolved against the authorized project,
+  platform, and `pieceName` before use. It is an opaque handle, not proof of
+  ownership, so a connection id from another project — or minted for a
+  different integration in the same project — resolves to `ENTITY_NOT_FOUND`
+  (404) and never reaches the runtime.
 - When both `connectionId` and `externalUserId` are supplied, the connection's
   `externalId` must match, so a connection id for one customer cannot be redeemed
   on behalf of another.
