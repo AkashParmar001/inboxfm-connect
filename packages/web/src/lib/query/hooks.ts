@@ -1,4 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type {
+  CreateAIProviderRequest,
+  UpdateAIProviderRequest,
+} from '@inboxfm-connect/shared'
+import { type AIProviderName, aiProvidersApi } from '../api/ai-providers'
 import { apiKeysApi } from '../api/api-keys'
 import { automationsApi } from '../api/automations'
 import { billingApi } from '../api/billing'
@@ -465,4 +470,53 @@ export function useCreateBillingCheckoutMutation() {
       billingApi.createCheckoutSession({ newActiveFlowsLimit }),
   })
 }
+
+export function useAIProvidersQuery() {
+  return useQuery({
+    queryKey: ['ai-providers'],
+    queryFn: () => aiProvidersApi.list(),
+    meta: { showErrorToast: true },
+  })
+}
+
+export function useAIProviderModelsQuery(provider?: AIProviderName, enabled = true) {
+  return useQuery({
+    queryKey: ['ai-provider-models', provider],
+    queryFn: () => (provider ? aiProvidersApi.listModels(provider) : Promise.resolve([])),
+    enabled: !!provider && enabled,
+    staleTime: 60_000,
+  })
+}
+
+export function useCreateAIProviderMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (request: CreateAIProviderRequest) => aiProvidersApi.create(request),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+    },
+  })
+}
+
+export function useUpdateAIProviderMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, request }: { id: string; request: UpdateAIProviderRequest }) =>
+      aiProvidersApi.update(id, request),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+    },
+  })
+}
+
+export function useDeleteAIProviderMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => aiProvidersApi.delete(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['ai-providers'] })
+    },
+  })
+}
+
 
